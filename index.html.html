@@ -1,0 +1,3353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory & Sales Management System - Firebase</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+<style>
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        /* Ensure tables are scrollable on mobile */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevent text from breaking layout */
+        .break-words {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Floating animation for login screen items */
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-20px) rotate(5deg);
+            }
+            50% {
+                transform: translateY(-10px) rotate(-5deg);
+            }
+            75% {
+                transform: translateY(-15px) rotate(3deg);
+            }
+        }
+        
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div id="app" class="min-h-screen p-2 sm:p-4 md:p-6"></div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyAVFOoheqScNaZCzsgeNhLs1i4s1xQsdFM",
+          authDomain: "inventorysales-2494d.firebaseapp.com",
+          databaseURL: "https://inventorysales-2494d-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "inventorysales-2494d",
+          storageBucket: "inventorysales-2494d.firebasestorage.app",
+          messagingSenderId: "436290223690",
+          appId: "1:436290223690:web:6f4422f53050940c0ef0b3"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        console.log('🔥 Firebase initialized!');
+
+        const storage = {
+            set: async (key, value) => {
+                try {
+                    await db.ref(key).set(value);
+                    console.log('✅ Saved to Firebase:', key);
+                    return true;
+                } catch (error) {
+                    console.error('❌ Firebase save error:', error);
+                    throw error;
+                }
+            },
+            
+            get: async (key) => {
+                try {
+                    const snapshot = await db.ref(key).once('value');
+                    return snapshot.val();
+                } catch (error) {
+                    console.error('❌ Firebase get error:', error);
+                    return null;
+                }
+            },
+            
+            list: async (prefix) => {
+                try {
+                    const snapshot = await db.ref(prefix).once('value');
+                    const data = snapshot.val();
+                    return data ? Object.values(data) : [];
+                } catch (error) {
+                    console.error('❌ Firebase list error:', error);
+                    return [];
+                }
+            },
+            
+            delete: async (key) => {
+                try {
+                    await db.ref(key).remove();
+                    console.log('🗑️ Deleted from Firebase:', key);
+                } catch (error) {
+                    console.error('❌ Firebase delete error:', error);
+                    alert('Failed to delete. Check your internet connection.');
+                }
+            }
+        };
+
+        const icons = {
+            package: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>',
+            download: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+            plus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+            upload: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>',
+            image: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
+            cart: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>',
+            x: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+            edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+            trash: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+        };
+
+        class InventoryApp {
+constructor() {
+    this.products = [];
+    this.sales = [];
+    this.showAddProduct = false;
+    this.showSaleModal = false;
+    this.showOldSaleModal = false;
+    this.showPaymentModal = false;
+    this.selectedProduct = null;
+    this.selectedSaleForPayment = null;
+    this.showEditProduct = false;
+    this.editingProduct = null;
+    this.isSaving = false;
+    this.showBulkUpload = false;
+    this.searchQuery = '';
+    this.filterLowStock = false;
+    this.filterOutOfStock = false;
+    
+    // Authentication properties
+// Authentication properties
+    this.currentUser = null;
+    this.isAuthenticated = false;
+    this.showLogin = true;
+    this.showRegister = false;
+    this.showAdminPanel = false;
+    this.showAdminDashboard = false;
+this.showActivityLog = false;
+this.showDeleteButtons = false;
+this.activityLogs = [];
+    this.pendingUsers = [];
+    
+    this.loginData = {
+        username: '',
+        password: ''
+    };
+    
+    this.registerData = {
+        username: '',
+        firstName: '',
+        lastName: '',
+        password: '',
+        confirmPassword: ''
+    };
+                
+                this.editProduct = {
+                    name: '',
+                    description: '',
+                    image: null,
+                    distributorPrice: '',
+                    retailPrice: '',
+                    quantity: ''
+                };
+                
+                this.newProduct = {
+                    name: '',
+                    description: '',
+                    image: null,
+                    distributorPrice: '',
+                    retailPrice: '',
+                    quantity: ''
+                };
+                
+                this.saleData = {
+                    quantity: 1,
+                    salePrice: '',
+                    amountPaid: '',
+                    customerName: ''
+                };
+                
+                this.oldSaleData = {
+                    productName: '',
+                    quantity: '',
+                    salePrice: '',
+                    amountPaid: '',
+                    customerName: '',
+                    saleDate: new Date().toISOString().split('T')[0],
+                    saleTime: new Date().toTimeString().split(' ')[0].substring(0, 5)
+                };
+
+this.paymentData = {
+                    amount: ''
+                };
+                
+                this.checkAuthentication(); // Check if user is already logged in
+            }
+
+         setupRealtimeListeners() {
+    db.ref('products').on('value', (snapshot) => {
+        const data = snapshot.val();
+        this.products = data ? Object.values(data) : [];
+        if (!this.isSaving) {  // ADD THIS LINE
+            this.render();
+        }  // ADD THIS LINE
+    });
+
+    db.ref('sales').on('value', (snapshot) => {
+        const data = snapshot.val();
+        this.sales = data ? Object.values(data) : [];
+        if (!this.isSaving) {  // ADD THIS LINE
+            this.render();
+        }  // ADD THIS LINE
+    });
+             db.ref('activityLogs').on('value', (snapshot) => {
+    const data = snapshot.val();
+    this.activityLogs = data ? Object.values(data) : [];
+    if (!this.isSaving) {
+        this.render();
+    }
+});
+}
+            async loadData() {
+                this.products = await storage.list('products');
+                this.sales = await storage.list('sales');
+                this.render();
+            }
+
+            handleImageUpload(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        this.newProduct.image = reader.result;
+                        this.render();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            handleEditImageUpload(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        this.editProduct.image = reader.result;
+                        this.render();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+getFilteredProducts() {
+    let filtered = this.products;
+
+    // Apply search filter
+    if (this.searchQuery.trim()) {
+        const searchTerms = this.searchQuery.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+        
+        filtered = filtered.filter(product => {
+            const productName = product.name.toLowerCase();
+            const productDesc = (product.description || '').toLowerCase();
+            
+            return searchTerms.every(term => 
+                productName.includes(term) || productDesc.includes(term)
+            );
+        });
+    }
+
+    // Apply out of stock filter
+    if (this.filterOutOfStock) {
+        filtered = filtered.filter(product => product.quantity === 0);
+    }
+    // Apply low stock filter (only if out of stock is not active)
+    else if (this.filterLowStock) {
+        filtered = filtered.filter(product => {
+            const baseQuantity = product.initialQuantity || product.quantity;
+            const lowStockThreshold = Math.ceil(baseQuantity / 3);
+            return product.quantity <= lowStockThreshold && product.quantity > 0;
+        });
+    }
+
+    return filtered;
+}
+
+async handleBulkUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            if (jsonData.length === 0) {
+                alert('The Excel file is empty. Please add products to upload.');
+                return;
+            }
+
+            // Validate required columns
+            const requiredColumns = ['Product Name', 'Distributor Price', 'Retail Price', 'Quantity'];
+            const firstRow = jsonData[0];
+            const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+
+            if (missingColumns.length > 0) {
+                alert(`Missing required columns: ${missingColumns.join(', ')}\n\nRequired columns are:\n- Product Name\n- Distributor Price\n- Retail Price\n- Quantity\n\nOptional: Description`);
+                return;
+            }
+
+            const confirmUpload = confirm(
+                `Found ${jsonData.length} products in the file.\n\n` +
+                `Do you want to upload these products?`
+            );
+
+            if (!confirmUpload) return;
+
+            this.isSaving = true;
+            let successCount = 0;
+            let errorCount = 0;
+            const errors = [];
+
+            for (let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                
+                try {
+                    // Validate row data
+                    if (!row['Product Name'] || !row['Distributor Price'] || 
+                        !row['Retail Price'] || !row['Quantity']) {
+                        errors.push(`Row ${i + 2}: Missing required fields`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    // CREATE PRODUCT FROM ROW DATA (NOT from this.newProduct)
+                    const product = {
+                        id: `${Date.now()}_${i}`,  // Unique ID for each product
+                        name: String(row['Product Name']).trim(),
+                        description: row['Description'] ? String(row['Description']).trim() : '',
+                        image: null,  // Bulk upload doesn't support images
+                        distributorPrice: parseFloat(row['Distributor Price']),
+                        retailPrice: parseFloat(row['Retail Price']),
+                        quantity: parseInt(row['Quantity']),
+                        dateAdded: new Date().toISOString(),
+                        addedBy: this.currentUser ? this.currentUser.username : 'Unknown',
+                        addedByName: this.getUserDisplayName()
+                    };
+
+                    // Validate numbers
+                    if (isNaN(product.distributorPrice) || isNaN(product.retailPrice) || isNaN(product.quantity)) {
+                        errors.push(`Row ${i + 2}: Invalid number format`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    if (product.quantity < 0 || product.distributorPrice < 0 || product.retailPrice < 0) {
+                        errors.push(`Row ${i + 2}: Negative values not allowed`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    await storage.set(`products/${product.id}`, product);
+                    successCount++;
+                } catch (error) {
+                    errors.push(`Row ${i + 2}: ${error.message}`);
+                    errorCount++;
+                }
+            }
+
+            this.isSaving = false;
+            this.showBulkUpload = false;
+            this.render();
+
+            let message = `Upload complete!\n\n`;
+            message += `✅ Successfully uploaded: ${successCount} products\n`;
+            if (errorCount > 0) {
+                message += `❌ Failed: ${errorCount} products\n\n`;
+                if (errors.length > 0) {
+                    message += `Errors:\n${errors.slice(0, 5).join('\n')}`;
+                    if (errors.length > 5) {
+                        message += `\n... and ${errors.length - 5} more errors`;
+                    }
+                }
+            }
+            alert(message);
+
+        } catch (error) {
+            this.isSaving = false;
+            console.error('Error processing Excel file:', error);
+            alert('Error processing Excel file. Please make sure it is a valid Excel file with the correct format.');
+            this.render();
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+downloadBulkUploadTemplate() {
+    const template = [
+        {
+            'Product Name': 'Example Product 1',
+            'Description': 'Optional description',
+            'Distributor Price': 10.00,
+            'Retail Price': 15.00,
+            'Quantity': 100
+        },
+        {
+            'Product Name': 'Example Product 2',
+            'Description': 'Another example',
+            'Distributor Price': 20.00,
+            'Retail Price': 30.00,
+            'Quantity': 50
+        }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(template);
+    
+    // Set column widths
+    ws['!cols'] = [
+        { wch: 25 }, // Product Name
+        { wch: 30 }, // Description
+        { wch: 18 }, // Distributor Price
+        { wch: 15 }, // Retail Price
+        { wch: 12 }  // Quantity
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Products');
+    XLSX.writeFile(wb, 'Bulk_Upload_Template.xlsx');
+}
+
+            // ========== AUTHENTICATION FUNCTIONS ==========
+
+async checkAuthentication() {
+    // Create default admin if doesn't exist
+    await this.ensureAdminExists();
+    
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        this.currentUser = JSON.parse(savedUser);
+        this.isAuthenticated = true;
+        this.showLogin = false;
+        this.setupRealtimeListeners();
+    } else {
+        this.isAuthenticated = false;
+        this.showLogin = true;
+    }
+    this.render();
+}
+
+async ensureAdminExists() {
+    try {
+        const adminUser = await storage.get('users/admin');
+        if (!adminUser) {
+            // Create default admin account
+            const defaultAdmin = {
+                username: 'admin',
+                firstName: 'Admin',
+                lastName: 'User',
+                password: 'admin123', // Default password - should be changed after first login
+                createdAt: new Date().toISOString(),
+                role: 'admin',
+                status: 'approved',
+                approvedBy: 'system',
+                approvedAt: new Date().toISOString()
+            };
+            await storage.set('users/admin', defaultAdmin);
+            console.log('✅ Default admin account created');
+            console.log('Username: admin');
+            console.log('Password: admin123');
+        }
+    } catch (error) {
+        console.error('Error ensuring admin exists:', error);
+    }
+}
+async register() {
+    const { username, firstName, lastName, password, confirmPassword } = this.registerData;
+    
+    // Validation
+    if (!username || !firstName || !lastName || !password || !confirmPassword) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    if (username.length < 3) {
+        alert('Username must be at least 3 characters long');
+        return;
+    }
+    
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        alert('Passwords do not match');
+        return;
+    }
+    
+    try {
+        // Check if username exists
+        const existingUser = await storage.get(`users/${username}`);
+        if (existingUser) {
+            alert('Username already exists. Please choose a different username.');
+            return;
+        }
+        
+        // Create new user
+        // Create new user with pending status
+        const newUser = {
+            username: username.trim(),
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            password: password, // In production, this should be hashed!
+            createdAt: new Date().toISOString(),
+            role: 'user',
+            status: 'pending', // pending, approved, rejected
+            approvedBy: null,
+            approvedAt: null
+        };
+        
+        await storage.set(`users/${username}`, newUser);
+        
+        alert(`Registration submitted successfully!\n\nYour account is pending approval by an administrator. You will be able to login once approved.`);
+        
+        // Don't auto-login, keep them on login screen
+        this.showRegister = false;
+        this.showLogin = true;
+        
+        // Reset form
+        this.registerData = {
+            username: '',
+            firstName: '',
+            lastName: '',
+            password: '',
+            confirmPassword: ''
+        };
+        
+        this.render();
+        
+    } catch (error) {
+        console.error('Registration error:', error);
+        alert('Registration failed. Please try again.');
+    }
+}
+
+async login() {
+    const { username, password } = this.loginData;
+    
+    if (!username || !password) {
+        alert('Please enter username and password');
+        return;
+    }
+    
+    try {
+        const user = await storage.get(`users/${username}`);
+        
+        if (!user) {
+            alert('Username not found. Please register first.');
+            return;
+        }
+        
+if (user.password !== password) {
+            alert('Incorrect password. Please try again.');
+            return;
+        }
+        
+        // Check if user is approved (admins bypass this check)
+        if (user.role !== 'admin' && user.status === 'pending') {
+            alert('Your account is pending approval by an administrator. Please wait for approval before logging in.');
+            return;
+        }
+        
+        if (user.role !== 'admin' && user.status === 'rejected') {
+            alert('Your account registration was rejected. Please contact the administrator.');
+            return;
+        }
+        
+        // Login successful
+        this.currentUser = user;
+        this.isAuthenticated = true;
+        this.showLogin = false;
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        // Reset form
+        this.loginData = {
+            username: '',
+            password: ''
+        };
+        
+        this.setupRealtimeListeners();
+        this.render();
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed. Please try again.');
+    }
+}
+
+logout() {
+    const confirmLogout = confirm('Are you sure you want to logout?');
+    if (confirmLogout) {
+        this.currentUser = null;
+        this.isAuthenticated = false;
+        this.showLogin = true;
+        localStorage.removeItem('currentUser');
+        this.render();
+    }
+}
+
+getUserDisplayName() {
+    if (this.currentUser) {
+        return `${this.currentUser.firstName} ${this.currentUser.lastName}`;
+    }
+    return 'Guest';
+}
+async loadPendingUsers() {
+    try {
+        const usersSnapshot = await db.ref('users').once('value');
+        const usersData = usersSnapshot.val();
+        
+        console.log('📊 All users data from Firebase:', usersData);  // DEBUG LINE
+        
+        if (usersData) {
+            this.pendingUsers = Object.values(usersData).filter(user => 
+                user.status === 'pending' && user.role !== 'admin'
+            );
+            console.log('📋 Pending users filtered:', this.pendingUsers);  // DEBUG LINE
+        } else {
+            this.pendingUsers = [];
+            console.log('⚠️ No users data found in Firebase');  // DEBUG LINE
+        }
+        
+        this.render();
+    } catch (error) {
+        console.error('Error loading pending users:', error);
+        alert('Failed to load pending users.');
+    }
+}
+async approveUser(username) {
+    console.log('🔍 Attempting to approve user:', username);
+    
+    const confirmApprove = confirm(`Are you sure you want to approve the registration for ${username}?`);
+    if (!confirmApprove) return;
+    
+    try {
+        this.isSaving = true;
+        
+        // Get the user directly from Firebase using the database reference
+        console.log('🔍 Fetching user from Firebase path: users/' + username);
+        const userSnapshot = await db.ref(`users/${username}`).once('value');
+        const user = userSnapshot.val();
+        
+        console.log('📦 User data retrieved:', user);
+        
+        if (!user) {
+            // If user not found, try to find them in the loaded pending users list
+            const pendingUser = this.pendingUsers.find(u => u.username === username);
+            
+            if (!pendingUser) {
+                alert('❌ User not found! The user may have been deleted or the username is incorrect.');
+                console.error('❌ User not found at path: users/' + username);
+                this.isSaving = false;
+                return;
+            }
+            
+            // Use the pending user data
+            console.log('✅ Found user in pending users list');
+            pendingUser.status = 'approved';
+            pendingUser.approvedBy = this.currentUser.username;
+            pendingUser.approvedAt = new Date().toISOString();
+            
+            await db.ref(`users/${username}`).set(pendingUser);
+        } else {
+            console.log('✏️ Updating user status to approved');
+            
+            user.status = 'approved';
+            user.approvedBy = this.currentUser.username;
+            user.approvedAt = new Date().toISOString();
+            
+            console.log('💾 Saving updated user:', user);
+            await db.ref(`users/${username}`).set(user);
+        }
+        
+        this.isSaving = false;
+        
+        // ====== ADD THESE LINES ======
+        // Remove the approved user from the pendingUsers array immediately
+        this.pendingUsers = this.pendingUsers.filter(u => u.username !== username);
+        
+        // If no more pending users, close the panel immediately
+        if (this.pendingUsers.length === 0) {
+            this.showAdminPanel = false;
+        }
+        // ====== END OF NEW LINES ======
+        
+        alert(`✅ User ${username} has been approved successfully!`);
+        
+        // Reload pending users to sync with database
+        await this.loadPendingUsers();
+        
+        this.render();
+    } catch (error) {
+        this.isSaving = false;
+        console.error('❌ Error approving user:', error);
+        alert('❌ Failed to approve user. Please try again. Error: ' + error.message);
+    }
+}
+async rejectUser(username) {
+    const reason = prompt(`Enter reason for rejecting ${username}:`);
+    if (!reason || !reason.trim()) {
+        alert('Rejection cancelled. A reason is required.');
+        return;
+    }
+    
+    const confirmReject = confirm(`Are you sure you want to reject the registration for ${username}?`);
+    if (!confirmReject) return;
+    
+    try {
+        this.isSaving = true;
+        
+        const user = await storage.get(`users/${username}`);
+        if (!user) {
+            alert('User not found!');
+            this.isSaving = false;
+            return;
+        }
+        
+        user.status = 'rejected';
+        user.rejectedBy = this.currentUser.username;
+        user.rejectedAt = new Date().toISOString();
+        user.rejectionReason = reason.trim();
+        
+        await storage.set(`users/${username}`, user);
+        
+        this.isSaving = false;
+        
+        alert(`✅ User ${username} has been rejected.`);
+        
+        // Reload pending users and check if any remain
+        await this.loadPendingUsers();
+        
+        // If no more pending users, close the panel
+        if (this.pendingUsers.length === 0) {
+            this.showAdminPanel = false;
+        }
+        
+        this.render();
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error rejecting user:', error);
+        alert('❌ Failed to reject user. Please try again. Error: ' + error.message);
+    }
+}
+calculateAdminStats() {
+    const stats = {
+        totalSalesToday: 0,
+        totalSalesAllTime: 0,
+        totalCashToday: 0,
+        totalCashAllTime: 0,
+        totalDebt: 0,
+        inventoryValue: 0,
+        lowStockItems: [],
+        topSellingProducts: {},
+        salesByDay: {},
+        productsSold: {},
+        productsRemaining: {}
+    };
+
+    const today = new Date().toLocaleDateString();
+
+    // Calculate inventory value and track remaining stock
+    this.products.forEach(product => {
+        const inventoryValue = product.quantity * product.distributorPrice;
+        stats.inventoryValue += inventoryValue;
+        
+        stats.productsRemaining[product.name] = {
+            quantity: product.quantity,
+            distributorPrice: product.distributorPrice,
+            retailPrice: product.retailPrice,
+            totalValue: inventoryValue
+        };
+
+const baseQuantity = product.initialQuantity || product.quantity;
+const lowStockThreshold = Math.ceil(baseQuantity / 3);
+if (product.quantity <= lowStockThreshold) {
+    stats.lowStockItems.push({
+        name: product.name,
+        quantity: product.quantity
+    });
+}
+    });
+
+    // Process all sales
+    this.sales.forEach(sale => {
+        const saleDate = new Date(sale.date).toLocaleDateString();
+        
+        // Initialize day if not exists
+        if (!stats.salesByDay[saleDate]) {
+            stats.salesByDay[saleDate] = {
+                totalSales: 0,
+                totalCash: 0,
+                totalDebt: 0,
+                itemsSold: {},
+                transactionCount: 0
+            };
+        }
+
+        // Skip payment records for total sales (they're already counted)
+        if (!sale.isPaymentRecord) {
+            stats.salesByDay[saleDate].totalSales += sale.totalAmount;
+            stats.salesByDay[saleDate].transactionCount++;
+            
+            // Track items sold per day
+            if (!stats.salesByDay[saleDate].itemsSold[sale.productName]) {
+                stats.salesByDay[saleDate].itemsSold[sale.productName] = {
+                    quantity: 0,
+                    totalAmount: 0
+                };
+            }
+            stats.salesByDay[saleDate].itemsSold[sale.productName].quantity += sale.quantity;
+            stats.salesByDay[saleDate].itemsSold[sale.productName].totalAmount += sale.totalAmount;
+
+            // Track top selling products overall
+            if (!stats.topSellingProducts[sale.productName]) {
+                stats.topSellingProducts[sale.productName] = {
+                    quantity: 0,
+                    revenue: 0
+                };
+            }
+            stats.topSellingProducts[sale.productName].quantity += sale.quantity;
+            stats.topSellingProducts[sale.productName].revenue += sale.totalAmount;
+
+            // Track products sold (cumulative)
+            if (!stats.productsSold[sale.productName]) {
+                stats.productsSold[sale.productName] = {
+                    totalQuantity: 0,
+                    totalRevenue: 0
+                };
+            }
+            stats.productsSold[sale.productName].totalQuantity += sale.quantity;
+            stats.productsSold[sale.productName].totalRevenue += sale.totalAmount;
+        }
+
+        // Track cash received
+        stats.salesByDay[saleDate].totalCash += sale.amountPaid;
+        stats.salesByDay[saleDate].totalDebt += (sale.balance || 0);
+
+        // Calculate today's totals
+        if (saleDate === today) {
+            if (!sale.isPaymentRecord) {
+                stats.totalSalesToday += sale.totalAmount;
+            }
+            stats.totalCashToday += sale.amountPaid;
+        }
+
+        // Calculate all-time totals
+        if (!sale.isPaymentRecord) {
+            stats.totalSalesAllTime += sale.totalAmount;
+        }
+        stats.totalCashAllTime += sale.amountPaid;
+        stats.totalDebt += (sale.balance || 0);
+    });
+
+    return stats;
+}
+            renderAdminDashboard() {
+    const stats = this.calculateAdminStats();
+    const sortedDates = Object.keys(stats.salesByDay).sort((a, b) => new Date(b) - new Date(a));
+    
+    // Sort top selling products
+    const topProducts = Object.entries(stats.topSellingProducts)
+        .sort((a, b) => b[1].quantity - a[1].quantity)
+        .slice(0, 10);
+
+    return `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-7xl w-full shadow-2xl my-8 max-h-[95vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-6 sticky top-0 bg-white pb-4 border-b">
+                    <div>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-gray-800">📊 Admin Dashboard</h3>
+                        <p class="text-sm text-gray-600 mt-1">Complete business overview and analytics</p>
+                    </div>
+                    <button onclick="app.showAdminDashboard = false; app.render()" class="text-gray-500 hover:text-gray-700">
+                        ${icons.x}
+                    </button>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+                        <p class="text-sm opacity-90">Sales Today</p>
+                        <p class="text-3xl font-bold">GH₵${stats.totalSalesToday.toFixed(2)}</p>
+                        <p class="text-xs mt-2 opacity-75">Cash: GH₵${stats.totalCashToday.toFixed(2)}</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white shadow-lg">
+                        <p class="text-sm opacity-90">All-Time Sales</p>
+                        <p class="text-3xl font-bold">GH₵${stats.totalSalesAllTime.toFixed(2)}</p>
+                        <p class="text-xs mt-2 opacity-75">Cash: GH₵${stats.totalCashAllTime.toFixed(2)}</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white shadow-lg">
+                        <p class="text-sm opacity-90">Total Debt</p>
+                        <p class="text-3xl font-bold">GH₵${stats.totalDebt.toFixed(2)}</p>
+                        <p class="text-xs mt-2 opacity-75">Outstanding payments</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
+                        <p class="text-sm opacity-90">Inventory Value</p>
+                        <p class="text-3xl font-bold">GH₵${stats.inventoryValue.toFixed(2)}</p>
+                        <p class="text-xs mt-2 opacity-75">${this.products.length} products</p>
+                    </div>
+                </div>
+
+                <!-- Top Selling Products -->
+                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border-2 border-indigo-200">
+                    <h4 class="text-xl font-bold text-gray-800 mb-4">🏆 Top Selling Products</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${topProducts.map((([product, data], index) => `
+                            <div class="bg-white rounded-lg p-4 shadow-md border-l-4 ${index === 0 ? 'border-yellow-400' : index === 1 ? 'border-gray-400' : index === 2 ? 'border-orange-400' : 'border-indigo-400'}">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            ${index < 3 ? `<span class="text-2xl">${index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</span>` : `<span class="font-bold text-gray-400">#${index + 1}</span>`}
+                                            <h5 class="font-bold text-gray-800">${product}</h5>
+                                        </div>
+                                        <p class="text-sm text-gray-600 mt-2">Quantity Sold: <span class="font-bold text-indigo-600">${data.quantity} units</span></p>
+                                        <p class="text-sm text-gray-600">Revenue: <span class="font-bold text-green-600">GH₵${data.revenue.toFixed(2)}</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        `)).join('')}
+                    </div>
+                </div>
+
+                <!-- Low Stock Alert -->
+                ${stats.lowStockItems.length > 0 ? `
+                    <div class="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 mb-6 border-2 border-red-300">
+                        <h4 class="text-xl font-bold text-red-800 mb-4">⚠️ Low Stock Alert (${stats.lowStockItems.length} items)</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            ${stats.lowStockItems.map(item => `
+                                <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-red-500">
+                                    <p class="font-bold text-gray-800">${item.name}</p>
+                                    <p class="text-sm text-red-600 font-semibold">${item.quantity} units remaining</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- Products Sold vs Remaining -->
+                <div class="bg-gray-50 rounded-xl p-6 mb-6">
+                    <h4 class="text-xl font-bold text-gray-800 mb-4">📦 Inventory Overview: Products Sold vs Remaining</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="p-3 text-left font-semibold">Product Name</th>
+                                    <th class="p-3 text-left font-semibold">Total Sold</th>
+                                    <th class="p-3 text-left font-semibold">Remaining Stock</th>
+                                    <th class="p-3 text-left font-semibold">Stock Value</th>
+                                    <th class="p-3 text-left font-semibold">Revenue Generated</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white">
+                                ${Object.keys(stats.productsRemaining).map(productName => {
+                                    const remaining = stats.productsRemaining[productName];
+                                    const sold = stats.productsSold[productName] || { totalQuantity: 0, totalRevenue: 0 };
+                                    return `
+                     <tr class="border-t hover:bg-gray-50">
+                <td class="p-3 font-semibold text-gray-800">${productName}</td>
+                <td class="p-3 text-blue-600 font-bold">${sold.totalQuantity} units</td>
+                <td class="p-3 ${remaining.quantity < 10 ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}">${remaining.quantity} units</td>
+                <td class="p-3 text-purple-600 font-semibold">GH₵${remaining.totalValue.toFixed(2)}</td>
+                <td class="p-3 text-green-600 font-bold">GH₵${sold.totalRevenue.toFixed(2)}</td>
+              </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Daily Sales Breakdown -->
+                <div class="bg-white rounded-xl p-6 border-2 border-gray-200">
+                    <h4 class="text-xl font-bold text-gray-800 mb-4">📅 Daily Sales Breakdown</h4>
+                    <div class="space-y-4">
+                        ${sortedDates.map(date => {
+                            const dayData = stats.salesByDay[date];
+                            return `
+                                <div class="border-2 border-indigo-200 rounded-lg p-4 hover:shadow-lg transition">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <h5 class="text-lg font-bold text-indigo-800">${date}</h5>
+                                        <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                            ${dayData.transactionCount} transactions
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                        <div class="bg-blue-50 rounded-lg p-3">
+                                            <p class="text-xs text-blue-600 font-medium">Total Sales</p>
+                                            <p class="text-xl font-bold text-blue-800">GH₵${dayData.totalSales.toFixed(2)}</p>
+                                        </div>
+                                        <div class="bg-green-50 rounded-lg p-3">
+                                            <p class="text-xs text-green-600 font-medium">Cash Received</p>
+                                            <p class="text-xl font-bold text-green-800">GH₵${dayData.totalCash.toFixed(2)}</p>
+                                        </div>
+                                        <div class="bg-red-50 rounded-lg p-3">
+                                            <p class="text-xs text-red-600 font-medium">Outstanding</p>
+                                            <p class="text-xl font-bold text-red-800">GH₵${dayData.totalDebt.toFixed(2)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-gray-50 rounded-lg p-3">
+                                        <p class="text-sm font-semibold text-gray-700 mb-2">Items Sold:</p>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            ${Object.entries(dayData.itemsSold).map(([product, data]) => `
+                                                <div class="flex justify-between text-sm">
+                                                    <span class="text-gray-700">${product}</span>
+                                                    <span class="font-bold text-indigo-600">${data.quantity} units (GH₵${data.totalAmount.toFixed(2)})</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <div class="flex justify-end mt-6 sticky bottom-0 bg-white pt-4 border-t">
+                    <button onclick="app.showAdminDashboard = false; app.render()" 
+                        class="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition font-semibold">
+                        Close Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+            renderActivityLog() {
+    // Combine all activities from products, sales, and deletion logs
+    const activities = [];
+
+    // Add product activities
+    this.products.forEach(product => {
+        if (product.addedBy) {
+            activities.push({
+                type: 'product_added',
+                user: product.addedByName || product.addedBy,
+                username: product.addedBy,
+                action: `Added product "${product.name}"`,
+                details: `${product.quantity} units at GH₵${product.retailPrice.toFixed(2)} retail price`,
+                timestamp: product.dateAdded,
+                icon: '📦',
+                color: 'blue'
+            });
+        }
+
+        if (product.lastEditedBy) {
+            activities.push({
+                type: 'product_edited',
+                user: product.lastEditedByName || product.lastEditedBy,
+                username: product.lastEditedBy,
+                action: `Edited product "${product.name}"`,
+                details: `Updated details`,
+                timestamp: product.lastEditedAt,
+                icon: '✏️',
+                color: 'yellow'
+            });
+        }
+    });
+
+    // Add sales activities
+    this.sales.forEach(sale => {
+        if (sale.soldBy) {
+            activities.push({
+                type: 'sale_made',
+                user: sale.soldByName || sale.soldBy,
+                username: sale.soldBy,
+                action: `Made a sale: "${sale.productName}"`,
+                details: `${sale.quantity} units for GH₵${sale.totalAmount.toFixed(2)}${sale.customerName ? ` to ${sale.customerName}` : ''}`,
+                timestamp: sale.date,
+                icon: '💰',
+                color: 'green'
+            });
+        }
+
+        if (sale.recordedBy && sale.isOldSale) {
+            activities.push({
+                type: 'old_sale_recorded',
+                user: sale.recordedByName || sale.recordedBy,
+                username: sale.recordedBy,
+                action: `Recorded old sale: "${sale.productName}"`,
+                details: `${sale.quantity} units for GH₵${sale.totalAmount.toFixed(2)}`,
+                timestamp: sale.recordedAt,
+                icon: '📝',
+                color: 'purple'
+            });
+        }
+
+        if (sale.recordedBy && sale.isPaymentRecord) {
+            activities.push({
+                type: 'payment_recorded',
+                user: sale.recordedByName || sale.recordedBy,
+                username: sale.recordedBy,
+                action: `Recorded payment from ${sale.customerName}`,
+                details: `GH₵${sale.amountPaid.toFixed(2)} - ${sale.paymentNote}`,
+                timestamp: sale.date,
+                icon: '💳',
+                color: 'teal'
+            });
+        }
+    });
+
+    // Add deletion logs
+// Add deletion logs
+this.activityLogs.forEach(log => {
+    if (log.type === 'product_deleted') {
+        activities.push({
+            type: 'product_deleted',
+            user: log.deletedByName || log.deletedBy,
+            username: log.deletedBy,
+            action: `Deleted product "${log.productName}"`,
+            details: `Had ${log.productDetails.quantity} units remaining`,
+            timestamp: log.deletedAt,
+            icon: '🗑️',
+            color: 'red'
+        });
+    }
+    
+    if (log.type === 'sale_deleted') {
+        activities.push({
+            type: 'sale_deleted',
+            user: log.deletedByName || log.deletedBy,
+            username: log.deletedBy,
+            action: `Deleted sale: "${log.productName}"`,
+            details: `${log.quantity} units - GH₵${log.totalAmount.toFixed(2)} - Customer: ${log.customerName} - Reason: ${log.reason}`,
+            timestamp: log.deletedAt,
+            icon: '❌',
+            color: 'red'
+        });
+    }
+});
+
+    // Sort by timestamp (newest first)
+    activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    // Group by date
+    const groupedActivities = {};
+    activities.forEach(activity => {
+        const date = new Date(activity.timestamp).toLocaleDateString();
+        if (!groupedActivities[date]) {
+            groupedActivities[date] = [];
+        }
+        groupedActivities[date].push(activity);
+    });
+
+    const colorClasses = {
+        blue: 'bg-blue-50 border-blue-300 text-blue-800',
+        green: 'bg-green-50 border-green-300 text-green-800',
+        yellow: 'bg-yellow-50 border-yellow-300 text-yellow-800',
+        red: 'bg-red-50 border-red-300 text-red-800',
+        purple: 'bg-purple-50 border-purple-300 text-purple-800',
+        teal: 'bg-teal-50 border-teal-300 text-teal-800'
+    };
+
+    return `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-6xl w-full shadow-2xl my-8 max-h-[95vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-6 sticky top-0 bg-white pb-4 border-b">
+                    <div>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-gray-800">📋 Activity Log</h3>
+                        <p class="text-sm text-gray-600 mt-1">Track all actions by users - ${activities.length} total activities</p>
+                    </div>
+                   <button 
+    onclick="app.showActivityLog = true; app.render()" 
+    class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition text-sm"
+>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+    </svg>
+    <span>Activity Log</span>
+</button>
+
+                </div>
+
+                ${activities.length === 0 ? `
+                    <div class="text-center py-12">
+                        <p class="text-gray-500 text-lg">No activities recorded yet</p>
+                    </div>
+                ` : `
+                    <div class="space-y-6">
+                        ${Object.entries(groupedActivities).map(([date, dateActivities]) => `
+                            <div class="border-2 border-gray-200 rounded-xl overflow-hidden">
+                                <div class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-4">
+                                    <h4 class="text-lg font-bold">${date}</h4>
+                                    <p class="text-sm opacity-90">${dateActivities.length} activities</p>
+                                </div>
+                                <div class="p-4 space-y-3">
+                                    ${dateActivities.map(activity => `
+                                        <div class="border-2 ${colorClasses[activity.color]} rounded-lg p-4 hover:shadow-md transition">
+                                            <div class="flex items-start gap-3">
+                                                <span class="text-3xl">${activity.icon}</span>
+                                                <div class="flex-1">
+                                                    <div class="flex items-start justify-between gap-2">
+                                                        <div class="flex-1">
+                                                            <p class="font-bold text-gray-800">${activity.action}</p>
+                                                            <p class="text-sm text-gray-600 mt-1">${activity.details}</p>
+                                                        </div>
+                                                        <span class="text-xs text-gray-500 whitespace-nowrap">
+                                                            ${new Date(activity.timestamp).toLocaleTimeString()}
+                                                        </span>
+                                                    </div>
+                                                    <div class="mt-2 flex items-center gap-2">
+                                                        <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-semibold">
+                                                            👤 ${activity.user}
+                                                        </span>
+                                                        <span class="text-xs text-gray-500">
+                                                            @${activity.username}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+
+                <div class="flex justify-end mt-6 sticky bottom-0 bg-white pt-4 border-t">
+                    <button onclick="app.showActivityLog = false; app.render()" 
+                        class="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition font-semibold">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+// ========== END AUTHENTICATION FUNCTIONS ==========
+async addProduct() {
+                if (!this.newProduct.name || !this.newProduct.distributorPrice || 
+                    !this.newProduct.retailPrice || !this.newProduct.quantity) {
+                    alert('Please fill in all required fields');
+                    return;
+                }
+
+                // Validate that values are not just whitespace
+                if (!this.newProduct.name.trim()) {
+                    alert('Product name cannot be empty');
+                    return;
+                }
+
+                // Check for duplicate product names
+                const productName = this.newProduct.name.trim().toLowerCase();
+                const isDuplicate = this.products.some(p => 
+                    p.name.toLowerCase() === productName
+                );
+
+                if (isDuplicate) {
+                    const confirmAdd = confirm(
+                        `A product with the name "${this.newProduct.name.trim()}" already exists.\n\n` +
+                        `Do you want to add it anyway? (You might want to update the existing product instead)`
+                    );
+                    
+                    if (!confirmAdd) {
+                        return;
+                    }
+                }
+
+                    const product = {
+        id: Date.now().toString(),
+        name: this.newProduct.name.trim(),
+        description: this.newProduct.description.trim(),
+        image: this.newProduct.image,
+        distributorPrice: parseFloat(this.newProduct.distributorPrice),
+        retailPrice: parseFloat(this.newProduct.retailPrice),
+        quantity: parseInt(this.newProduct.quantity),
+        initialQuantity: parseInt(this.newProduct.quantity), // ADD THIS LINE
+        dateAdded: new Date().toISOString(),
+        addedBy: this.currentUser ? this.currentUser.username : 'Unknown',
+        addedByName: this.getUserDisplayName()
+    };
+
+                console.log('Attempting to save product:', product);
+
+                try {
+                    // Set saving flag to prevent premature rendering
+                    this.isSaving = true;
+                    
+                    // Show that we're saving
+                    const originalButton = event.target;
+                    originalButton.disabled = true;
+                    originalButton.textContent = 'Saving...';
+                    
+                    await storage.set(`products/${product.id}`, product);
+                    
+                    console.log('Product saved successfully');
+                    
+                    // Only reset form after successful save
+                    this.newProduct = {
+                        name: '',
+                        description: '',
+                        image: null,
+                        distributorPrice: '',
+                        retailPrice: '',
+                        quantity: ''
+                    };
+                    this.showAddProduct = false;
+                    
+                    // Clear saving flag
+                    this.isSaving = false;
+                    
+                    // Force render to update UI
+                    this.render();
+                    
+                    alert('Product added successfully!');
+                } catch (error) {
+                    this.isSaving = false;
+                    console.error('Error adding product:', error);
+                    alert('Failed to save product. Error: ' + error.message + '\nPlease check your internet connection and try again.');
+                    this.render(); // Re-render to restore button state
+                }
+            }
+            openEditModal(product) {
+                this.editingProduct = product;
+                this.editProduct = {
+                    name: product.name,
+                    description: product.description,
+                    image: product.image,
+                    distributorPrice: product.distributorPrice.toString(),
+                    retailPrice: product.retailPrice.toString(),
+                    quantity: product.quantity.toString()
+                };
+                this.showEditProduct = true;
+                this.render();
+            }
+
+        
+async updateProduct() {
+    if (!this.editProduct.name || !this.editProduct.distributorPrice || 
+        !this.editProduct.retailPrice || !this.editProduct.quantity) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    // Validate that values are not just whitespace
+    if (!this.editProduct.name.trim()) {
+        alert('Product name cannot be empty');
+        return;
+    }
+
+    try {
+        this.isSaving = true;
+
+        this.editingProduct.name = this.editProduct.name.trim();
+        this.editingProduct.description = this.editProduct.description.trim();
+        this.editingProduct.image = this.editProduct.image;
+        this.editingProduct.distributorPrice = parseFloat(this.editProduct.distributorPrice);
+        this.editingProduct.retailPrice = parseFloat(this.editProduct.retailPrice);
+        this.editingProduct.quantity = parseInt(this.editProduct.quantity);
+        this.editingProduct.lastEditedBy = this.currentUser ? this.currentUser.username : 'Unknown';
+        this.editingProduct.lastEditedByName = this.getUserDisplayName();
+        this.editingProduct.lastEditedAt = new Date().toISOString();
+
+        await storage.set(`products/${this.editingProduct.id}`, this.editingProduct);
+        
+        this.isSaving = false;
+        this.showEditProduct = false;
+        this.editingProduct = null;
+        this.editProduct = {
+            name: '',
+            description: '',
+            image: null,
+            distributorPrice: '',
+            retailPrice: '',
+            quantity: ''
+        };
+        
+        this.render();
+        alert('Product updated successfully!');
+        
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error updating product:', error);
+        alert('Failed to update product. Error: ' + error.message + '\nPlease check your internet connection and try again.');
+        this.render();
+    }
+}
+
+            async deleteProduct(product) {
+                const productSales = this.sales.filter(sale => sale.productId === product.id);
+                
+                if (productSales.length > 0) {
+                    const confirmDelete = confirm(
+                        `This product has ${productSales.length} sale record(s). ` +
+                        `Deleting it will not affect existing sales records, but the product ` +
+                        `will be removed from inventory. Continue?`
+                    );
+                    
+                    if (!confirmDelete) return;
+                } else {
+                    const confirmDelete = confirm(
+                        `Are you sure you want to delete "${product.name}"? This action cannot be undone.`
+                    );
+                    
+                    if (!confirmDelete) return;
+                }
+                
+// Log the deletion before removing
+const deletionLog = {
+    id: Date.now().toString(),
+    type: 'product_deleted',
+    productId: product.id,
+    productName: product.name,
+    deletedBy: this.currentUser ? this.currentUser.username : 'Unknown',
+    deletedByName: this.getUserDisplayName(),
+    deletedAt: new Date().toISOString(),
+    productDetails: {
+        distributorPrice: product.distributorPrice,
+        retailPrice: product.retailPrice,
+        quantity: product.quantity
+    }
+};
+
+await storage.set(`activityLogs/${deletionLog.id}`, deletionLog);
+await storage.delete(`products/${product.id}`);
+            }
+
+async makeSale() {
+    if (!this.selectedProduct || this.saleData.quantity < 1 || !this.saleData.salePrice) {
+        alert('Please fill in all sale details');
+        return;
+    }
+
+    if (this.saleData.quantity > this.selectedProduct.quantity) {
+        alert('Insufficient stock!');
+        return;
+    }
+
+    const totalAmount = parseInt(this.saleData.quantity) * parseFloat(this.saleData.salePrice);
+    const amountPaid = parseFloat(this.saleData.amountPaid) || 0;
+    const balance = totalAmount - amountPaid;
+
+    if (balance > 0 && !this.saleData.customerName.trim()) {
+        alert('Please enter customer name for partial payment');
+        return;
+    }
+
+    // ============ NEW CODE: CHECK FOR RECENT DUPLICATE SALES ============
+    // Check if this product was sold recently (within last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const recentSales = this.sales.filter(sale => 
+        sale.productId === this.selectedProduct.id &&
+        new Date(sale.date) > fiveMinutesAgo &&
+        !sale.isPaymentRecord &&
+        !sale.isOldSale
+    );
+
+    if (recentSales.length > 0) {
+        const recentSaleDetails = recentSales.map((sale, index) => 
+            `\n${index + 1}. ${sale.quantity} units - GH₵${sale.totalAmount.toFixed(2)} - ${new Date(sale.date).toLocaleTimeString()}${sale.customerName ? ` (Customer: ${sale.customerName})` : ''}`
+        ).join('');
+
+        const confirmDuplicate = confirm(
+            `⚠️ DUPLICATE SALE WARNING\n\n` +
+            `You recently sold "${this.selectedProduct.name}" ${recentSales.length} time(s) in the last 5 minutes:\n` +
+            `${recentSaleDetails}\n\n` +
+            `NEW SALE:\n` +
+            `Quantity: ${this.saleData.quantity} units\n` +
+            `Amount: GH₵${totalAmount.toFixed(2)}\n` +
+            `${this.saleData.customerName ? `Customer: ${this.saleData.customerName}\n` : ''}` +
+            `\nDo you want to continue with this sale?`
+        );
+
+        if (!confirmDuplicate) {
+            // User cancelled - do nothing and keep the modal open
+            return;
+        }
+    }
+    // ============ END NEW CODE ============
+
+    const sale = {
+        id: Date.now().toString(),
+        productId: this.selectedProduct.id,
+        productName: this.selectedProduct.name,
+        quantity: parseInt(this.saleData.quantity),
+        salePrice: parseFloat(this.saleData.salePrice),
+        totalAmount: totalAmount,
+        amountPaid: amountPaid,
+        balance: balance > 0 ? balance : 0,
+        customerName: this.saleData.customerName.trim(),
+        isPaid: balance <= 0,
+        payments: [],
+        date: new Date().toISOString(),
+        soldBy: this.currentUser ? this.currentUser.username : 'Unknown',
+        soldByName: this.getUserDisplayName()
+    };
+
+    this.selectedProduct.quantity -= parseInt(this.saleData.quantity);
+    
+    try {
+        // Set saving flag to prevent premature rendering
+        this.isSaving = true;
+        
+        await storage.set(`sales/${sale.id}`, sale);
+        await storage.set(`products/${this.selectedProduct.id}`, this.selectedProduct);
+        
+        // Clear saving flag
+        this.isSaving = false;
+        
+        // Reset form data and close modal
+        this.saleData = { quantity: 1, salePrice: '', amountPaid: '', customerName: '' };
+        this.selectedProduct = null;
+        this.showSaleModal = false;
+        
+        // Force render to update UI
+        this.render();
+        
+        // Show success message
+        alert('Sale recorded successfully!');
+        
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error recording sale:', error);
+        alert('Failed to record sale. Error: ' + error.message + '\nPlease check your internet connection and try again.');
+        // Restore the quantity we subtracted
+        this.selectedProduct.quantity += parseInt(this.saleData.quantity);
+        this.render();
+    }
+}
+ async addOldSale() {
+    if (!this.oldSaleData.productName || !this.oldSaleData.quantity || 
+        !this.oldSaleData.salePrice || !this.oldSaleData.saleDate) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    const totalAmount = parseInt(this.oldSaleData.quantity) * parseFloat(this.oldSaleData.salePrice);
+    const amountPaid = parseFloat(this.oldSaleData.amountPaid) || totalAmount;
+    const balance = totalAmount - amountPaid;
+
+    if (balance > 0 && !this.oldSaleData.customerName.trim()) {
+        alert('Please enter customer name for partial payment');
+        return;
+    }
+
+    const dateTimeString = `${this.oldSaleData.saleDate}T${this.oldSaleData.saleTime}:00`;
+
+const sale = {
+    id: Date.now().toString(),
+    productId: null,
+    productName: this.oldSaleData.productName,
+    quantity: parseInt(this.oldSaleData.quantity),
+    salePrice: parseFloat(this.oldSaleData.salePrice),
+    totalAmount: totalAmount,
+    amountPaid: amountPaid,
+    balance: balance > 0 ? balance : 0,
+    customerName: this.oldSaleData.customerName.trim(),
+    isPaid: balance <= 0,
+    isOldSale: true,
+    payments: [],
+    date: new Date(dateTimeString).toISOString(),
+    recordedBy: this.currentUser ? this.currentUser.username : 'Unknown',
+    recordedByName: this.getUserDisplayName(),
+    recordedAt: new Date().toISOString()
+};
+
+    try {
+        // Set saving flag to prevent premature rendering
+        this.isSaving = true;
+        
+        await storage.set(`sales/${sale.id}`, sale);
+        
+        // Clear saving flag
+        this.isSaving = false;
+        
+        // Reset form data
+        this.oldSaleData = {
+            productName: '',
+            quantity: '',
+            salePrice: '',
+            amountPaid: '',
+            customerName: '',
+            saleDate: new Date().toISOString().split('T')[0],
+            saleTime: new Date().toTimeString().split(' ')[0].substring(0, 5)
+        };
+        
+        // Close modal
+        this.showOldSaleModal = false;
+        
+        // Force render to update UI
+        this.render();
+        
+        // Show success message
+        alert('Old sale recorded successfully!');
+        
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error recording old sale:', error);
+        alert('Failed to record old sale. Error: ' + error.message + '\nPlease check your internet connection and try again.');
+        this.render();
+    }
+}
+async recordPayment() {
+    if (!this.selectedSaleForPayment || !this.paymentData.amount) {
+        alert('Please enter payment amount');
+        return;
+    }
+
+    const paymentAmount = parseFloat(this.paymentData.amount);
+    
+    if (paymentAmount <= 0) {
+        alert('Payment amount must be greater than 0');
+        return;
+    }
+
+    if (paymentAmount > this.selectedSaleForPayment.balance) {
+        alert('Payment amount cannot exceed the balance due');
+        return;
+    }
+
+    const payment = {
+        amount: paymentAmount,
+        date: new Date().toISOString()
+    };
+
+    if (!this.selectedSaleForPayment.payments) {
+        this.selectedSaleForPayment.payments = [];
+    }
+    this.selectedSaleForPayment.payments.push(payment);
+    this.selectedSaleForPayment.amountPaid += paymentAmount;
+    this.selectedSaleForPayment.balance -= paymentAmount;
+    this.selectedSaleForPayment.isPaid = this.selectedSaleForPayment.balance <= 0;
+
+    try {
+        // Set saving flag to prevent premature rendering
+        this.isSaving = true;
+        
+        await storage.set(`sales/${this.selectedSaleForPayment.id}`, this.selectedSaleForPayment);
+
+const paymentTransaction = {
+    id: Date.now().toString(),
+    productId: null,
+    productName: this.selectedSaleForPayment.productName,
+    quantity: 0,
+    salePrice: 0,
+    totalAmount: paymentAmount,
+    amountPaid: paymentAmount,
+    balance: 0,
+    customerName: this.selectedSaleForPayment.customerName,
+    isPaid: true,
+    isPaymentRecord: true,
+    originalSaleId: this.selectedSaleForPayment.id,
+    originalSaleDate: this.selectedSaleForPayment.date,
+    paymentNote: `Payment for debt from ${new Date(this.selectedSaleForPayment.date).toLocaleDateString()}`,
+    date: new Date().toISOString(),
+    recordedBy: this.currentUser ? this.currentUser.username : 'Unknown',
+    recordedByName: this.getUserDisplayName()
+};
+
+        await storage.set(`sales/${paymentTransaction.id}`, paymentTransaction);
+
+        // Clear saving flag
+        this.isSaving = false;
+        
+        // Reset payment data and close modal
+        this.paymentData = { amount: '' };
+        this.selectedSaleForPayment = null;
+        this.showPaymentModal = false;
+        
+        // Force render to update UI
+        this.render();
+        
+        // Show success message
+        alert('Payment recorded successfully!');
+        
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error recording payment:', error);
+        alert('Failed to record payment. Error: ' + error.message + '\nPlease check your internet connection and try again.');
+        this.render();
+    }
+}
+async deleteSale(sale) {
+    // Only admins can delete sales
+    if (this.currentUser.role !== 'admin') {
+        alert('Only administrators can delete sales records.');
+        return;
+    }
+
+    const reason = prompt(`⚠️ IMPORTANT: Enter reason for deleting this sale:\n\nProduct: ${sale.productName}\nAmount: GH₵${sale.totalAmount.toFixed(2)}\nCustomer: ${sale.customerName || 'N/A'}\n\nReason:`);
+    
+    if (!reason || !reason.trim()) {
+        alert('Deletion cancelled. A reason is required.');
+        return;
+    }
+
+    const confirmDelete = confirm(
+        `🚨 CONFIRM SALE DELETION\n\n` +
+        `Product: ${sale.productName}\n` +
+        `Quantity: ${sale.quantity || 0} units\n` +
+        `Amount: GH₵${sale.totalAmount.toFixed(2)}\n` +
+        `Customer: ${sale.customerName || 'N/A'}\n` +
+        `Date: ${new Date(sale.date).toLocaleString()}\n\n` +
+        `Reason: ${reason}\n\n` +
+        `This action CANNOT be undone. Continue?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+        this.isSaving = true;
+
+        // If it's a regular sale (not a payment record or old sale), restore the product quantity
+        if (!sale.isPaymentRecord && !sale.isOldSale && sale.productId) {
+            const product = this.products.find(p => p.id === sale.productId);
+            if (product) {
+                product.quantity += sale.quantity;
+                await storage.set(`products/${product.id}`, product);
+            }
+        }
+
+        // Log the deletion
+        const deletionLog = {
+            id: Date.now().toString(),
+            type: 'sale_deleted',
+            saleId: sale.id,
+            productName: sale.productName,
+            quantity: sale.quantity || 0,
+            totalAmount: sale.totalAmount,
+            customerName: sale.customerName || 'N/A',
+            saleDate: sale.date,
+            deletedBy: this.currentUser.username,
+            deletedByName: this.getUserDisplayName(),
+            deletedAt: new Date().toISOString(),
+            reason: reason.trim(),
+            saleDetails: {
+                amountPaid: sale.amountPaid,
+                balance: sale.balance || 0,
+                isPaymentRecord: sale.isPaymentRecord || false,
+                isOldSale: sale.isOldSale || false,
+                soldBy: sale.soldByName || sale.soldBy || 'Unknown'
+            }
+        };
+
+        await storage.set(`activityLogs/${deletionLog.id}`, deletionLog);
+        
+        // Delete the sale
+        await storage.delete(`sales/${sale.id}`);
+
+        this.isSaving = false;
+        this.render();
+
+        alert(`✅ Sale deleted successfully!\n\nThe stock has been restored (if applicable) and the deletion has been logged.`);
+
+    } catch (error) {
+        this.isSaving = false;
+        console.error('Error deleting sale:', error);
+        alert('Failed to delete sale. Error: ' + error.message);
+        this.render();
+    }
+}
+            openPaymentModal(sale) {
+                this.selectedSaleForPayment = sale;
+                this.paymentData = { amount: sale.balance.toString() };
+                this.showPaymentModal = true;
+                this.render();
+            }
+
+            getUnpaidSales() {
+                return this.sales.filter(sale => sale.balance > 0).sort((a, b) => 
+                    new Date(b.date) - new Date(a.date)
+                );
+            }
+
+            openSaleModal(product) {
+                this.selectedProduct = product;
+                this.saleData = {
+                    quantity: 1,
+                    salePrice: product.retailPrice.toString(),
+                    amountPaid: '',
+                    customerName: ''
+                };
+                this.showSaleModal = true;
+                this.render();
+            }
+
+            exportToExcel() {
+                const productsSheet = this.products.map(p => ({
+                    'Product Name': p.name,
+                    'Description': p.description,
+                    'Distributor Price': p.distributorPrice,
+                    'Retail Price': p.retailPrice,
+                    'Quantity Available': p.quantity,
+                    'Date Added': new Date(p.dateAdded).toLocaleDateString()
+                }));
+
+                const salesSheet = this.sales.map(s => ({
+                    'Product Name': s.productName,
+                    'Customer Name': s.customerName || 'N/A',
+                    'Transaction Type': s.isPaymentRecord ? 'Debt Payment' : 'Sale',
+                    'Quantity Sold': s.quantity || 0,
+                    'Sale Price': s.salePrice,
+                    'Total Amount': s.isPaymentRecord ? 0 : s.totalAmount,
+                    'Amount Paid': s.amountPaid,
+                    'Balance Due': s.balance || 0,
+                    'Payment Status': s.isPaid ? 'Paid' : 'Partial',
+                    'Number of Payments': s.payments ? s.payments.length : 0,
+                    'Payment Note': s.paymentNote || '',
+                    'Original Sale Date': s.originalSaleDate ? new Date(s.originalSaleDate).toLocaleDateString() : '',
+                    'Date': new Date(s.date).toLocaleDateString(),
+                    'Time': new Date(s.date).toLocaleTimeString()
+                }));
+
+                const wb = XLSX.utils.book_new();
+                const ws1 = XLSX.utils.json_to_sheet(productsSheet);
+                const ws2 = XLSX.utils.json_to_sheet(salesSheet);
+                
+                XLSX.utils.book_append_sheet(wb, ws1, 'Inventory');
+                XLSX.utils.book_append_sheet(wb, ws2, 'Sales');
+                
+                XLSX.writeFile(wb, `Inventory_Sales_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+            }
+
+            exportDailyToExcel(date, sales) {
+                const summary = this.calculateDaySummary(sales);
+                
+                const salesSheet = sales.map(s => ({
+                    'Product Name': s.productName,
+                    'Customer Name': s.customerName || 'N/A',
+                    'Transaction Type': s.isPaymentRecord ? 'Debt Payment' : 'Sale',
+                    'Quantity': s.quantity || 0,
+                    'Unit Price': s.salePrice || 0,
+                    'Total Amount': s.isPaymentRecord ? 0 : s.totalAmount,
+                    'Amount Paid': s.amountPaid,
+                    'Balance Due': s.balance || 0,
+                    'Payment Status': s.isPaid ? 'Paid' : 'Partial',
+                    'Payment Note': s.paymentNote || '',
+                    'Time': new Date(s.date).toLocaleTimeString()
+                }));
+
+                const summaryData = [
+                    { 'Description': 'Date', 'Value': date },
+                    { 'Description': '', 'Value': '' },
+                    { 'Description': 'ITEMS SOLD', 'Value': '' },
+                    ...Object.entries(summary.itemsSold).map(([product, data]) => ({
+                        'Description': product,
+                        'Value': `${data.quantity} units - GH₵${data.amount.toFixed(2)}`
+                    })),
+                    { 'Description': '', 'Value': '' },
+                    { 'Description': 'FINANCIAL SUMMARY', 'Value': '' },
+                    { 'Description': 'Total Items Sold', 'Value': summary.totalQuantity },
+                    { 'Description': 'Total Sales Amount', 'Value': `GH₵${summary.totalAmount.toFixed(2)}` },
+                    { 'Description': 'Debt Payments Received', 'Value': `GH₵${summary.paymentsReceived.toFixed(2)}` },
+                    { 'Description': 'Total Cash Received', 'Value': `GH₵${summary.amountReceived.toFixed(2)}` },
+                    { 'Description': 'Outstanding Balance', 'Value': `GH₵${summary.totalBalance.toFixed(2)}` }
+                ];
+
+                const wb = XLSX.utils.book_new();
+                const ws1 = XLSX.utils.json_to_sheet(salesSheet);
+                const ws2 = XLSX.utils.json_to_sheet(summaryData);
+                
+                XLSX.utils.book_append_sheet(wb, ws1, 'Sales Details');
+                XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+                
+                const fileName = `Daily_Sales_${date.replace(/\//g, '-')}.xlsx`;
+                XLSX.writeFile(wb, fileName);
+            }
+
+            exportDailyToWord(date, sales) {
+                const summary = this.calculateDaySummary(sales);
+                
+                let htmlContent = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 40px; max-width: 1200px; margin: 0 auto; }
+                            .header { text-align: center; border-bottom: 3px solid #4F46E5; padding-bottom: 20px; margin-bottom: 30px; }
+                            .header h1 { color: #4F46E5; margin: 0; font-size: 28px; }
+                            .header p { color: #6B7280; margin: 10px 0 0 0; font-size: 18px; }
+                            .section { margin-bottom: 30px; }
+                            .section-title { background-color: #4F46E5; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+                            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                            th { background-color: #F3F4F6; padding: 12px; text-align: left; font-weight: bold; border: 1px solid #D1D5DB; }
+                            td { padding: 10px 12px; border: 1px solid #D1D5DB; }
+                            tr:nth-child(even) { background-color: #F9FAFB; }
+                            .highlight-yellow { background-color: #FEF3C7 !important; }
+                            .highlight-green { background-color: #D1FAE5 !important; }
+                            .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+                            .summary-box { border: 2px solid #E5E7EB; padding: 20px; border-radius: 8px; }
+                            .summary-box h3 { color: #4F46E5; margin-top: 0; font-size: 16px; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+                            .summary-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F3F4F6; }
+                            .summary-item:last-child { border-bottom: none; }
+                            .summary-label { color: #6B7280; font-weight: 500; }
+                            .summary-value { font-weight: bold; color: #111827; }
+                            .text-red { color: #DC2626; }
+                            .text-green { color: #059669; }
+                            .text-blue { color: #2563EB; }
+                            .text-orange { color: #EA580C; }
+                            .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #E5E7EB; text-align: center; color: #6B7280; font-size: 12px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>📦 Daily Sales Report</h1>
+                            <p>${date}</p>
+                        </div>
+                        <div class="section">
+                            <div class="section-title">Sales Transactions</div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Customer</th>
+                                        <th>Qty</th>
+                                        <th>Unit Price</th>
+                                        <th>Total</th>
+                                        <th>Paid</th>
+                                        <th>Balance</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                sales.forEach(sale => {
+                    const rowClass = sale.balance > 0 ? 'highlight-yellow' : (sale.isPaymentRecord ? 'highlight-green' : '');
+                    htmlContent += `
+                        <tr class="${rowClass}">
+                            <td>${sale.productName}${sale.isPaymentRecord ? `<br><small style="color: #059669; font-weight: bold;">💰 ${sale.paymentNote}</small>` : ''}</td>
+                            <td style="${sale.customerName ? 'color: #4F46E5; font-weight: bold;' : 'color: #9CA3AF;'}">${sale.customerName || '-'}</td>
+                            <td>${sale.quantity || '-'}</td>
+                            <td>${sale.salePrice > 0 ? 'GH₵' + sale.salePrice.toFixed(2) : '-'}</td>
+                            <td style="font-weight: bold;">${sale.isPaymentRecord ? '-' : 'GH₵' + sale.totalAmount.toFixed(2)}</td>
+                            <td style="color: #059669; font-weight: bold;">GH₵${sale.amountPaid.toFixed(2)}</td>
+                            <td style="${sale.balance > 0 ? 'color: #DC2626; font-weight: bold;' : 'color: #9CA3AF;'}">${sale.balance > 0 ? 'GH₵' + sale.balance.toFixed(2) : '-'}</td>
+                            <td>${new Date(sale.date).toLocaleTimeString()}</td>
+                        </tr>
+                    `;
+                });
+
+                htmlContent += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="section">
+                            <div class="section-title">Daily Summary</div>
+                            <div class="summary-grid">
+                                <div class="summary-box">
+                                    <h3>Items Sold</h3>
+                `;
+
+                Object.entries(summary.itemsSold).forEach(([product, data]) => {
+                    htmlContent += `
+                        <div class="summary-item">
+                            <span class="summary-label">${product}</span>
+                            <span class="summary-value">${data.quantity} units - GH₵${data.amount.toFixed(2)}</span>
+                        </div>
+                    `;
+                });
+
+                htmlContent += `
+                                </div>
+                                <div class="summary-box">
+                                    <h3>Financial Summary</h3>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Total Items Sold</span>
+                                        <span class="summary-value text-blue">${summary.totalQuantity}</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">Total Sales Amount</span>
+                                        <span class="summary-value text-blue">GH₵${summary.totalAmount.toFixed(2)}</span>
+                                    </div>
+                `;
+
+                if (summary.paymentsReceived > 0) {
+                    htmlContent += `
+                                    <div class="summary-item">
+                                        <span class="summary-label">Debt Payments Received</span>
+                                        <span class="summary-value text-orange">GH₵${summary.paymentsReceived.toFixed(2)}</span>
+                                    </div>
+                    `;
+                }
+
+                htmlContent += `
+                                    <div class="summary-item">
+                                        <span class="summary-label">Total Cash Received</span>
+                                        <span class="summary-value text-green">GH₵${summary.amountReceived.toFixed(2)}</span>
+                                    </div>
+                `;
+
+                if (summary.totalBalance > 0) {
+                    htmlContent += `
+                                    <div class="summary-item">
+                                        <span class="summary-label">Outstanding Balance</span>
+                                        <span class="summary-value text-red">GH₵${summary.totalBalance.toFixed(2)}</span>
+                                    </div>
+                    `;
+                }
+
+                htmlContent += `
+                                </div>
+                            </div>
+                        </div>
+                        <div class="footer">
+                            <p>Generated by Inventory & Sales Management System on ${new Date().toLocaleString()}</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                const blob = new Blob([htmlContent], { type: 'application/msword' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Daily_Sales_${date.replace(/\//g, '-')}.doc`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+
+            groupSalesByDay() {
+                const grouped = {};
+                
+                this.sales.forEach(sale => {
+                    const dateKey = new Date(sale.date).toLocaleDateString();
+                    if (!grouped[dateKey]) {
+                        grouped[dateKey] = [];
+                    }
+                    grouped[dateKey].push(sale);
+                });
+                
+                return grouped;
+            }
+
+            calculateDaySummary(sales) {
+                const summary = {
+                    totalAmount: 0,
+                    amountReceived: 0,
+                    totalBalance: 0,
+                    itemsSold: {},
+                    totalQuantity: 0,
+                    paymentsReceived: 0
+                };
+                
+                sales.forEach(sale => {
+                    if (sale.isPaymentRecord) {
+                        summary.paymentsReceived += sale.amountPaid;
+                        summary.amountReceived += sale.amountPaid;
+                    } else {
+                        summary.totalAmount += sale.totalAmount;
+                        summary.amountReceived += sale.amountPaid;
+                        summary.totalBalance += sale.balance || 0;
+                        summary.totalQuantity += sale.quantity;
+                        
+                        if (!summary.itemsSold[sale.productName]) {
+                            summary.itemsSold[sale.productName] = {
+                                quantity: 0,
+                                amount: 0
+                            };
+                        }
+                        
+                        summary.itemsSold[sale.productName].quantity += sale.quantity;
+                        summary.itemsSold[sale.productName].amount += sale.totalAmount;
+                    }
+                });
+                
+                return summary;
+            }
+
+
+render() {
+    const app = document.getElementById('app');
+    
+    // Show login/register screen if not authenticated
+    if (!this.isAuthenticated) {
+        app.innerHTML = this.renderAuthScreen();
+        return;
+    }
+    
+    app.innerHTML = `
+        <div class="max-w-7xl mx-auto">
+                        <div class="bg-white rounded-2xl shadow-xl p-4 sm:p-6 md:p-8">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
+                                <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                                    <span class="text-indigo-600 scale-75 sm:scale-100">${icons.package}</span>
+                                    <span class="break-words">Inventory & Sales</span>
+                                    <span class="text-xs bg-green-100 text-green-700 px-2 sm:px-3 py-1 rounded-full font-normal">🔥 Live</span>
+                                </h1>
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+                                    <div class="text-sm text-gray-600">
+                                        <span class="font-semibold">👤 ${this.getUserDisplayName()}</span>
+                                        ${this.currentUser.role === 'admin' ? '<span class="ml-2 bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">ADMIN</span>' : ''}
+                                    </div>
+                                    ${this.currentUser.role === 'admin' ? `
+  <button onclick="app.showActivityLog = true; app.render()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm flex items-center gap-2">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+    </svg>
+    Activity Log
+</button>
+
+<button onclick="app.showAdminDashboard = true; app.render()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm flex items-center gap-2">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+    </svg>
+    Dashboard
+</button>
+<button onclick="app.showDeleteButtons = !app.showDeleteButtons; app.render()" 
+    class="flex items-center justify-center gap-2 ${this.showDeleteButtons ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 hover:bg-gray-700'} text-white px-4 py-2 rounded-lg transition text-sm">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    </svg>
+    ${this.showDeleteButtons ? '🔓 Hide Delete' : '🔒 Show Delete'}
+</button>
+
+    <button onclick="app.showAdminPanel = true; app.loadPendingUsers()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm flex items-center gap-2">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                            </svg>
+                                            User Approvals
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="app.logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">
+                                        Logout
+                                    </button>
+                                    <button onclick="app.exportToExcel()" class="flex items-center gap-2 bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-green-700 transition shadow-lg text-sm sm:text-base w-full sm:w-auto justify-center">
+                                        ${icons.download}
+                                        Export to Excel
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 md:gap-8 mb-6 sm:mb-8">
+                                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 sm:p-6 text-white shadow-lg">
+                                    <h2 class="text-lg sm:text-xl md:text-2xl font-bold mb-2">Total Products</h2>
+                                    <p class="text-3xl sm:text-4xl md:text-5xl font-bold">${this.products.length}</p>
+                                </div>
+                                <div class="bg-gradient-to-br from-green-500 to-teal-600 rounded-xl p-4 sm:p-6 text-white shadow-lg">
+                                    <h2 class="text-lg sm:text-xl md:text-2xl font-bold mb-2">Total Sales</h2>
+                                    <p class="text-3xl sm:text-4xl md:text-5xl font-bold">${this.sales.length}</p>
+                                </div>
+                            </div>
+
+<div class="mb-6 space-y-4">
+    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <button onclick="app.showAddProduct = !app.showAddProduct; app.render()" class="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">
+            ${icons.plus}
+            Add New Product
+        </button>
+        <button onclick="app.showBulkUpload = true; app.render()" class="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">
+            ${icons.upload}
+            Bulk Upload
+        </button>
+        <button onclick="app.showOldSaleModal = true; app.render()" class="flex items-center justify-center gap-2 bg-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-purple-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">
+            ${icons.cart}
+            Record Old Sale
+        </button>
+    </div>
+    
+    <!-- Search and Filter Section -->
+    <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1">
+<input 
+    type="text" 
+    id="searchInput"
+    placeholder="🔍 Search products by name or description..." 
+    value="${this.searchQuery}"
+    oninput="app.searchQuery = this.value"
+    onkeyup="app.render()"
+    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+>
+            </div>
+<button 
+    onclick="app.filterLowStock = !app.filterLowStock; app.filterOutOfStock = false; app.render()" 
+    class="flex items-center justify-center gap-2 px-4 py-2 sm:py-3 rounded-lg transition shadow-sm text-sm sm:text-base whitespace-nowrap ${this.filterLowStock ? 'bg-red-600 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}"
+>
+    ${this.filterLowStock ? '✓ Low Stock' : 'Show Low Stock'}
+</button>
+<button 
+    onclick="app.filterOutOfStock = !app.filterOutOfStock; app.filterLowStock = false; app.render()" 
+    class="flex items-center justify-center gap-2 px-4 py-2 sm:py-3 rounded-lg transition shadow-sm text-sm sm:text-base whitespace-nowrap ${this.filterOutOfStock ? 'bg-gray-800 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}"
+>
+    ${this.filterOutOfStock ? '✓ Out of Stock' : 'Show Out of Stock'}
+</button>
+        </div>
+        ${this.searchQuery || this.filterLowStock || this.filterOutOfStock ? `
+    <div class="flex items-center gap-2 text-sm text-gray-600">
+        <span>Filters active:</span>
+        ${this.searchQuery ? `<span class="bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Search: "${this.searchQuery}"</span>` : ''}
+        ${this.filterLowStock ? `<span class="bg-red-100 text-red-700 px-2 py-1 rounded">Low Stock</span>` : ''}
+        ${this.filterOutOfStock ? `<span class="bg-gray-800 text-white px-2 py-1 rounded">Out of Stock</span>` : ''}
+        <button onclick="app.searchQuery = ''; app.filterLowStock = false; app.filterOutOfStock = false; app.render()" class="text-red-600 hover:text-red-800 ml-2">Clear All</button>
+    </div>
+` : ''}
+    </div>
+</div>
+
+                          ${this.showAddProduct ? this.renderAddProductForm() : ''}
+${this.showEditProduct ? this.renderEditProductForm() : ''}
+${this.showBulkUpload ? this.renderBulkUploadModal() : ''}
+                            ${this.renderProducts()}
+                            ${this.renderUnpaidSales()}
+${this.showSaleModal ? this.renderSaleModal() : ''}
+                            ${this.showOldSaleModal ? this.renderOldSaleModal() : ''}
+                            ${this.showPaymentModal ? this.renderPaymentModal() : ''}
+                            ${this.showAdminPanel ? this.renderAdminPanel() : ''}
+${this.showAdminDashboard ? this.renderAdminDashboard() : ''}
+${this.showActivityLog ? this.renderActivityLog() : ''}
+                            ${this.renderSalesTable()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderAdminPanel() {
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4 sm:mb-6">
+                                <div>
+                                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800">User Approval Management</h3>
+                                    <p class="text-sm text-gray-600 mt-1">Review and approve pending user registrations</p>
+                                </div>
+                                <button onclick="app.showAdminPanel = false; app.render()" class="text-gray-500 hover:text-gray-700 flex-shrink-0 ml-2">
+                                    ${icons.x}
+                                </button>
+                            </div>
+                            
+                            ${this.pendingUsers.length === 0 ? `
+                                <div class="text-center py-12 bg-gray-50 rounded-xl">
+                                    <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <p class="text-gray-500 text-lg font-medium">No pending approvals</p>
+                                    <p class="text-gray-400 text-sm mt-2">All user registrations have been processed</p>
+                                </div>
+                            ` : `
+                                <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-6">
+                                    <p class="text-purple-800 font-semibold">
+                                        📋 ${this.pendingUsers.length} user(s) pending approval
+                                    </p>
+                                </div>
+                                
+                                <div class="space-y-4">
+                                    ${this.pendingUsers.map(user => `
+                                        <div class="border-2 border-gray-200 rounded-xl p-4 sm:p-6 hover:shadow-lg transition bg-white">
+                                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center gap-3 mb-2">
+                                                        <div class="bg-indigo-100 p-3 rounded-full">
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-600">
+                                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                                <circle cx="12" cy="7" r="4"></circle>
+                                                            </svg>
+                                                        </div>
+                                                        <div>
+                                                            <h4 class="text-lg sm:text-xl font-bold text-gray-800">${user.firstName} ${user.lastName}</h4>
+                                                            <p class="text-sm text-gray-600">@${user.username}</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="mt-3 space-y-2 text-sm">
+                                                        <div class="flex items-center gap-2 text-gray-600">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                                                            </svg>
+                                                            <span>Registered: ${new Date(user.createdAt).toLocaleString()}</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+                                                                ⏳ PENDING APPROVAL
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                                    <button onclick='app.approveUser("${user.username}")' 
+                                                        class="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-semibold">
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                                        </svg>
+                                                        Approve
+                                                    </button>
+                                                    <button onclick='app.rejectUser("${user.username}")' 
+                                                        class="flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                        </svg>
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `}
+                            
+                            <div class="flex justify-end mt-6">
+                                <button onclick="app.showAdminPanel = false; app.render()" 
+                                    class="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+renderAuthScreen() {
+                if (this.showRegister) {
+                    return `
+                        <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+                            <!-- Animated Background -->
+                            <div class="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+                                <!-- Floating Items Animation -->
+                                <div class="absolute inset-0 opacity-20">
+                                    <!-- Shoes -->
+                                    <div class="absolute top-10 left-10 animate-float" style="animation-delay: 0s;">
+                                        <svg width="60" height="60" viewBox="0 0 64 64" fill="white">
+                                            <path d="M58 38c-3-2-8-4-13-4-3 0-6 1-8 2l-10-8c-1-3-3-6-6-7-4-2-8-1-11 1-2 2-3 5-2 8 0 2 2 4 4 5l8 6c-2 2-3 5-3 8 0 3 1 5 3 7 2 2 5 3 8 3 4 0 7-2 9-5 2-2 3-5 3-8v-1c3-1 7-2 10-1 2 0 4 1 6 2 1 1 3 1 4 0s2-2 2-4c0-2-1-3-2-4z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute top-40 right-20 animate-float" style="animation-delay: 2s;">
+                                        <svg width="50" height="50" viewBox="0 0 64 64" fill="white">
+                                            <path d="M54 28c-2-1-5-2-8-2-2 0-4 1-6 2l-8-6c-1-2-2-4-4-5-3-2-6-1-8 1-2 1-2 3-2 5 0 2 1 3 3 4l6 5c-1 1-2 3-2 5 0 2 1 4 2 5 2 1 4 2 6 2 3 0 5-1 7-3 1-2 2-4 2-6v-1c2 0 5-1 7 0 2 0 3 1 5 1 1 1 2 1 3 0 1-1 2-2 2-3 0-1-1-2-2-3z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- T-shirts -->
+                                    <div class="absolute top-60 left-1/4 animate-float" style="animation-delay: 1s;">
+                                        <svg width="55" height="55" viewBox="0 0 64 64" fill="white">
+                                            <path d="M52 16l-8-8c-1-1-2-1-3-1h-2c-1-4-4-7-8-7s-7 3-8 7h-2c-1 0-2 0-3 1l-8 8c-1 1-1 3 0 4l4 4c1 1 3 1 4 0l3-3v27c0 2 1 3 3 3h18c2 0 3-1 3-3V21l3 3c1 1 3 1 4 0l4-4c1-1 1-3 0-4z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute bottom-20 right-1/4 animate-float" style="animation-delay: 3s;">
+                                        <svg width="45" height="45" viewBox="0 0 64 64" fill="white">
+                                            <path d="M50 18l-7-7c-1-1-2-1-3-1h-1c-1-3-3-6-7-6s-6 3-7 6h-1c-1 0-2 0-3 1l-7 7c-1 1-1 2 0 3l3 3c1 1 2 1 3 0l3-3v24c0 2 1 3 3 3h16c2 0 3-1 3-3V21l3 3c1 1 2 1 3 0l3-3c1-1 1-2 0-3z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- Dresses -->
+                                    <div class="absolute top-32 right-40 animate-float" style="animation-delay: 1.5s;">
+                                        <svg width="48" height="48" viewBox="0 0 64 64" fill="white">
+                                            <path d="M44 8c-2-4-6-6-10-6-3 0-6 1-8 3-2-2-5-3-8-3-4 0-8 2-10 6l-6 12c-1 2 0 4 2 5l6 3c2 1 4 0 5-2l2-4v32c0 2 2 4 4 4h14c2 0 4-2 4-4V21l2 4c1 2 3 3 5 2l6-3c2-1 3-3 2-5l-6-12z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute bottom-32 left-20 animate-float" style="animation-delay: 2.5s;">
+                                        <svg width="52" height="52" viewBox="0 0 64 64" fill="white">
+                                            <path d="M46 10c-2-3-5-5-9-5-2 0-5 1-7 3-2-2-4-3-7-3-4 0-7 2-9 5l-5 10c-1 2 0 3 2 4l5 3c2 1 3 0 4-2l2-3v28c0 2 1 3 3 3h12c2 0 3-1 3-3V22l2 3c1 2 2 3 4 2l5-3c2-1 2-2 2-4l-5-10z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- Bags -->
+                                    <div class="absolute top-1/2 left-10 animate-float" style="animation-delay: 0.5s;">
+                                        <svg width="50" height="50" viewBox="0 0 64 64" fill="white">
+                                            <path d="M48 16h-6c0-6-5-11-11-11s-11 5-11 11h-6c-3 0-6 3-6 6v30c0 3 3 6 6 6h34c3 0 6-3 6-6V22c0-3-3-6-6-6zm-17-7c3 0 6 3 6 7h-12c0-4 3-7 6-7z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                
+                                <!-- Company Branding -->
+                                <div class="absolute top-10 left-1/2 transform -translate-x-1/2 text-center">
+                                    <h1 class="text-4xl md:text-6xl font-bold text-white mb-2 tracking-wider drop-shadow-lg">
+                                        LUXURY LINE
+                                    </h1>
+                                    <p class="text-xl md:text-2xl text-pink-200 font-light tracking-widest">
+                                        Collections & Display
+                                    </p>
+                                    <div class="mt-4 flex justify-center gap-4 text-white text-sm">
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Shoes</span>
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Clothing</span>
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Accessories</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8 max-w-md w-full relative z-10">
+                                <div class="text-center mb-8">
+                                    <div class="inline-block text-indigo-600 mb-4">${icons.package}</div>
+                                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Create Account</h1>
+                                    <p class="text-gray-600">Join the Inventory & Sales System</p>
+                                </div>
+                                
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                                        <input type="text" value="${this.registerData.username}"
+                                            onchange="app.registerData.username = this.value"
+                                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Choose a username">
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                                            <input type="text" value="${this.registerData.firstName}"
+                                                onchange="app.registerData.firstName = this.value"
+                                                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                                placeholder="First name">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                                            <input type="text" value="${this.registerData.lastName}"
+                                                onchange="app.registerData.lastName = this.value"
+                                                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                                placeholder="Last name">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+                                        <input type="password" value="${this.registerData.password}"
+                                            onchange="app.registerData.password = this.value"
+                                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Choose a password">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
+                                        <input type="password" value="${this.registerData.confirmPassword}"
+                                            onchange="app.registerData.confirmPassword = this.value"
+                                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Confirm your password">
+                                    </div>
+                                </div>
+                                
+                                <button onclick="app.register()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition shadow-lg font-semibold mt-6">
+                                    Create Account
+                                </button>
+                                
+                                <p class="text-center text-gray-600 mt-6">
+                                    Already have an account?
+                                    <button onclick="app.showRegister = false; app.showLogin = true; app.render()" class="text-indigo-600 hover:text-indigo-800 font-semibold">
+                                        Sign In
+                                    </button>
+                                </p>
+                            </div>
+                        </div>
+                    `;
+} else {
+                    return `
+                        <div class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+                            <!-- Animated Background -->
+                            <div class="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+                                <!-- Floating Items Animation -->
+                                <div class="absolute inset-0 opacity-20">
+                                    <!-- Shoes -->
+                                    <div class="absolute top-10 left-10 animate-float" style="animation-delay: 0s;">
+                                        <svg width="60" height="60" viewBox="0 0 64 64" fill="white">
+                                            <path d="M58 38c-3-2-8-4-13-4-3 0-6 1-8 2l-10-8c-1-3-3-6-6-7-4-2-8-1-11 1-2 2-3 5-2 8 0 2 2 4 4 5l8 6c-2 2-3 5-3 8 0 3 1 5 3 7 2 2 5 3 8 3 4 0 7-2 9-5 2-2 3-5 3-8v-1c3-1 7-2 10-1 2 0 4 1 6 2 1 1 3 1 4 0s2-2 2-4c0-2-1-3-2-4z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute top-40 right-20 animate-float" style="animation-delay: 2s;">
+                                        <svg width="50" height="50" viewBox="0 0 64 64" fill="white">
+                                            <path d="M54 28c-2-1-5-2-8-2-2 0-4 1-6 2l-8-6c-1-2-2-4-4-5-3-2-6-1-8 1-2 1-2 3-2 5 0 2 1 3 3 4l6 5c-1 1-2 3-2 5 0 2 1 4 2 5 2 1 4 2 6 2 3 0 5-1 7-3 1-2 2-4 2-6v-1c2 0 5-1 7 0 2 0 3 1 5 1 1 1 2 1 3 0 1-1 2-2 2-3 0-1-1-2-2-3z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- T-shirts -->
+                                    <div class="absolute top-60 left-1/4 animate-float" style="animation-delay: 1s;">
+                                        <svg width="55" height="55" viewBox="0 0 64 64" fill="white">
+                                            <path d="M52 16l-8-8c-1-1-2-1-3-1h-2c-1-4-4-7-8-7s-7 3-8 7h-2c-1 0-2 0-3 1l-8 8c-1 1-1 3 0 4l4 4c1 1 3 1 4 0l3-3v27c0 2 1 3 3 3h18c2 0 3-1 3-3V21l3 3c1 1 3 1 4 0l4-4c1-1 1-3 0-4z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute bottom-20 right-1/4 animate-float" style="animation-delay: 3s;">
+                                        <svg width="45" height="45" viewBox="0 0 64 64" fill="white">
+                                            <path d="M50 18l-7-7c-1-1-2-1-3-1h-1c-1-3-3-6-7-6s-6 3-7 6h-1c-1 0-2 0-3 1l-7 7c-1 1-1 2 0 3l3 3c1 1 2 1 3 0l3-3v24c0 2 1 3 3 3h16c2 0 3-1 3-3V21l3 3c1 1 2 1 3 0l3-3c1-1 1-2 0-3z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- Dresses -->
+                                    <div class="absolute top-32 right-40 animate-float" style="animation-delay: 1.5s;">
+                                        <svg width="48" height="48" viewBox="0 0 64 64" fill="white">
+                                            <path d="M44 8c-2-4-6-6-10-6-3 0-6 1-8 3-2-2-5-3-8-3-4 0-8 2-10 6l-6 12c-1 2 0 4 2 5l6 3c2 1 4 0 5-2l2-4v32c0 2 2 4 4 4h14c2 0 4-2 4-4V21l2 4c1 2 3 3 5 2l6-3c2-1 3-3 2-5l-6-12z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="absolute bottom-32 left-20 animate-float" style="animation-delay: 2.5s;">
+                                        <svg width="52" height="52" viewBox="0 0 64 64" fill="white">
+                                            <path d="M46 10c-2-3-5-5-9-5-2 0-5 1-7 3-2-2-4-3-7-3-4 0-7 2-9 5l-5 10c-1 2 0 3 2 4l5 3c2 1 3 0 4-2l2-3v28c0 2 1 3 3 3h12c2 0 3-1 3-3V22l2 3c1 2 2 3 4 2l5-3c2-1 2-2 2-4l-5-10z"/>
+                                        </svg>
+                                    </div>
+                                    <!-- Bags -->
+                                    <div class="absolute top-1/2 left-10 animate-float" style="animation-delay: 0.5s;">
+                                        <svg width="50" height="50" viewBox="0 0 64 64" fill="white">
+                                            <path d="M48 16h-6c0-6-5-11-11-11s-11 5-11 11h-6c-3 0-6 3-6 6v30c0 3 3 6 6 6h34c3 0 6-3 6-6V22c0-3-3-6-6-6zm-17-7c3 0 6 3 6 7h-12c0-4 3-7 6-7z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                
+                                <!-- Company Branding -->
+                                <div class="absolute top-10 left-1/2 transform -translate-x-1/2 text-center">
+                                    <h1 class="text-4xl md:text-6xl font-bold text-white mb-2 tracking-wider drop-shadow-lg">
+                                        LUXURY LINE
+                                    </h1>
+                                    <p class="text-xl md:text-2xl text-pink-200 font-light tracking-widest">
+                                        Collections & Display
+                                    </p>
+                                    <div class="mt-4 flex justify-center gap-4 text-white text-sm">
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Shoes</span>
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Clothing</span>
+                                        <span class="bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm">Accessories</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl p-8 max-w-md w-full relative z-10">
+                                <div class="text-center mb-8">
+                                    <div class="inline-block text-indigo-600 mb-4">${icons.package}</div>
+                                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
+                                    <p class="text-gray-600">Sign in to your account</p>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                                        <input type="text" value="${this.loginData.username}"
+                                            onchange="app.loginData.username = this.value"
+                                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Enter your username">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                                        <input type="password" value="${this.loginData.password}"
+                                            onchange="app.loginData.password = this.value"
+                                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="Enter your password">
+                                    </div>
+                                </div>
+                                
+                                <button onclick="app.login()" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition shadow-lg font-semibold mt-6">
+                                    Sign In
+                                </button>
+                                
+                                <p class="text-center text-gray-600 mt-6">
+                                    Don't have an account?
+                                    <button onclick="app.showRegister = true; app.showLogin = false; app.render()" class="text-indigo-600 hover:text-indigo-800 font-semibold">
+                                        Create Account
+                                    </button>
+                                </p>
+                            </div>
+                        </div>
+               `;
+                }
+            }
+
+            renderAddProductForm() {
+                return `
+                    <div class="bg-gray-50 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-inner">
+                        <h3 class="text-xl sm:text-2xl font-bold mb-4 text-gray-800">Add New Product</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                                <input type="text" value="${this.newProduct.name}" 
+                                    onchange="app.newProduct.name = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Enter product name">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                                <input type="number" value="${this.newProduct.quantity}"
+                                    onchange="app.newProduct.quantity = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Available quantity">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Distributor Price *</label>
+                                <input type="number" step="0.01" value="${this.newProduct.distributorPrice}"
+                                    onchange="app.newProduct.distributorPrice = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Cost price">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Retail Price *</label>
+                                <input type="number" step="0.01" value="${this.newProduct.retailPrice}"
+                                    onchange="app.newProduct.retailPrice = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Selling price">
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                <textarea onchange="app.newProduct.description = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    rows="3" placeholder="Product description">${this.newProduct.description}</textarea>
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                    <label class="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-300 transition text-sm sm:text-base">
+                                        ${icons.upload}
+                                        Choose Image
+                                        <input type="file" accept="image/*" onchange="app.handleImageUpload(event)" class="hidden">
+                                    </label>
+                                    ${this.newProduct.image ? `<img src="${this.newProduct.image}" alt="Preview" class="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-lg shadow">` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
+                            <button onclick="app.addProduct()" class="bg-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">
+                                Save Product
+                            </button>
+                            <button onclick="app.showAddProduct = false; app.render()" class="bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base w-full sm:w-auto">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderEditProductForm() {
+                if (!this.editingProduct) return '';
+                
+                return `
+                    <div class="bg-gray-50 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-inner">
+                        <h3 class="text-xl sm:text-2xl font-bold mb-4 text-gray-800">Edit Product</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                                <input type="text" value="${this.editProduct.name}" 
+                                    onchange="app.editProduct.name = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Enter product name">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                                <input type="number" value="${this.editProduct.quantity}"
+                                    onchange="app.editProduct.quantity = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Available quantity">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Distributor Price *</label>
+                                <input type="number" step="0.01" value="${this.editProduct.distributorPrice}"
+                                    onchange="app.editProduct.distributorPrice = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Cost price">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Retail Price *</label>
+                                <input type="number" step="0.01" value="${this.editProduct.retailPrice}"
+                                    onchange="app.editProduct.retailPrice = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Selling price">
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                <textarea onchange="app.editProduct.description = this.value"
+                                    class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                    rows="3" placeholder="Product description">${this.editProduct.description}</textarea>
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                    <label class="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-300 transition text-sm sm:text-base">
+                                        ${icons.upload}
+                                        Choose Image
+                                        <input type="file" accept="image/*" onchange="app.handleEditImageUpload(event)" class="hidden">
+                                    </label>
+                                    ${this.editProduct.image ? `<img src="${this.editProduct.image}" alt="Preview" class="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-lg shadow">` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
+                            <button onclick="app.updateProduct()" class="bg-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm sm:text-base w-full sm:w-auto">
+                                Update Product
+                            </button>
+                            <button onclick="app.showEditProduct = false; app.editingProduct = null; app.render()" class="bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base w-full sm:w-auto">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+renderProducts() {
+    const filteredProducts = this.getFilteredProducts();
+    
+    if (this.products.length === 0) {
+        return `
+            <div class="text-center py-12 bg-gray-50 rounded-xl mb-8">
+                <p class="text-gray-500 text-lg">No products yet. Add your first product!</p>
+            </div>
+        `;
+    }
+
+    if (filteredProducts.length === 0) {
+        return `
+            <div class="text-center py-12 bg-gray-50 rounded-xl mb-8">
+                <p class="text-gray-500 text-lg">No products match your filters.</p>
+                <button onclick="app.searchQuery = ''; app.filterLowStock = false; app.render()" class="mt-4 text-indigo-600 hover:text-indigo-800 font-medium">
+                    Clear Filters
+                </button>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="mb-6 sm:mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800">
+                    Products ${filteredProducts.length !== this.products.length ? `(${filteredProducts.length} of ${this.products.length})` : `(${this.products.length})`}
+                </h2>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                ${filteredProducts.map(product => `
+                    <div class="bg-white border-2 border-gray-200 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition">
+                        ${product.image ? 
+                            `<img src="${product.image}" alt="${product.name}" class="w-full h-40 sm:h-48 object-cover">` :
+                            `<div class="w-full h-40 sm:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                ${icons.image}
+                            </div>`
+                        }
+                        <div class="p-4 sm:p-6">
+                            <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-2 break-words">${product.name}</h3>
+                            ${product.description ? `<p class="text-gray-600 mb-4 line-clamp-2 text-sm sm:text-base break-words">${product.description}</p>` : ''}
+                            
+                            <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+                                <div class="bg-blue-50 p-2 sm:p-3 rounded-lg">
+                                    <p class="text-xs text-blue-600 font-medium">Distributor Price</p>
+                                    <p class="font-bold text-blue-800">GH₵${product.distributorPrice.toFixed(2)}</p>
+                                </div>
+                                <div class="bg-green-50 p-2 sm:p-3 rounded-lg">
+                                    <p class="text-xs text-green-600 font-medium">Retail Price</p>
+                                    <p class="font-bold text-green-800">GH₵${product.retailPrice.toFixed(2)}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-50 p-2 sm:p-3 rounded-lg mb-4">
+                                <p class="text-xs sm:text-sm text-gray-600">Stock Available</p>
+                                <p class="text-xl sm:text-2xl font-bold ${product.quantity <= Math.ceil((product.initialQuantity || product.quantity) / 3) ? 'text-red-600' : 'text-gray-800'}">${product.quantity} units</p>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <button onclick='app.openSaleModal(${JSON.stringify(product).replace(/'/g, "&apos;")})' 
+                                    class="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-xs sm:text-sm">
+                                    ${icons.cart}
+                                    Sell
+                                </button>
+                                <button onclick='app.openEditModal(${JSON.stringify(product).replace(/'/g, "&apos;")})' 
+                                    class="flex items-center justify-center gap-2 bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 transition text-xs sm:text-sm">
+                                    ${icons.edit}
+                                </button>
+                                <button onclick='app.deleteProduct(${JSON.stringify(product).replace(/'/g, "&apos;")})' 
+                                    class="flex items-center justify-center gap-2 bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition text-xs sm:text-sm">
+                                    ${icons.trash}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+            renderSaleModal() {
+                if (!this.selectedProduct) return '';
+                
+                const totalAmount = (parseInt(this.saleData.quantity || 0) * parseFloat(this.saleData.salePrice || 0)).toFixed(2);
+                const amountPaid = parseFloat(this.saleData.amountPaid || totalAmount);
+                const balance = (parseFloat(totalAmount) - amountPaid).toFixed(2);
+
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4 sm:mb-6">
+                                <h3 class="text-xl sm:text-2xl font-bold text-gray-800 break-words">Record Sale</h3>
+                                <button onclick="app.showSaleModal = false; app.selectedProduct = null; app.render()" class="text-gray-500 hover:text-gray-700 flex-shrink-0 ml-2">
+                                    ${icons.x}
+                                </button>
+                            </div>
+                            
+                            <div class="bg-indigo-50 p-3 sm:p-4 rounded-lg mb-4 border-2 border-indigo-200">
+                                <p class="font-bold text-gray-800 mb-1 text-sm sm:text-base break-words">${this.selectedProduct.name}</p>
+                                <p class="text-xs sm:text-sm text-gray-600">Available: ${this.selectedProduct.quantity} units</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                                    <input type="number" min="1" max="${this.selectedProduct.quantity}" value="${this.saleData.quantity}"
+                                        onchange="app.saleData.quantity = this.value; app.render()"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                        placeholder="Quantity">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Sale Price (per unit) *</label>
+                                    <input type="number" step="0.01" value="${this.saleData.salePrice}"
+                                        onchange="app.saleData.salePrice = this.value; app.render()"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                        placeholder="Price per unit">
+                                </div>
+
+                                ${totalAmount > 0 ? `
+                                    <div class="bg-blue-50 p-3 sm:p-4 rounded-lg border-2 border-blue-200">
+                                        <p class="text-base sm:text-lg font-bold text-gray-800">Total Amount: GH₵${totalAmount}</p>
+                                    </div>
+                                ` : ''}
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount Paid (Leave empty if fully paid)</label>
+                                    <input type="number" step="0.01" value="${this.saleData.amountPaid}"
+                                        onchange="app.saleData.amountPaid = this.value; app.render()"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                        placeholder="Enter amount paid">
+                                </div>
+
+                                ${balance > 0 ? `
+                                    <div class="bg-yellow-50 p-3 sm:p-4 rounded-lg border-2 border-yellow-400">
+                                        <p class="text-base sm:text-lg font-bold text-red-600">Balance Due: GH₵${balance}</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Customer Name (Required for partial payment) *</label>
+                                        <input type="text" value="${this.saleData.customerName}"
+                                            onchange="app.saleData.customerName = this.value"
+                                            class="w-full p-2 sm:p-3 border-2 border-yellow-400 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm sm:text-base"
+                                            placeholder="Enter customer name">
+                                    </div>
+                                ` : `
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Customer Name (Optional)</label>
+                                        <input type="text" value="${this.saleData.customerName}"
+                                            onchange="app.saleData.customerName = this.value"
+                                            class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                                            placeholder="Enter customer name">
+                                    </div>
+                                `}
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
+                                <button onclick="app.makeSale()" class="flex-1 bg-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm sm:text-base">
+                                    Complete Sale
+                                </button>
+                                <button onclick="app.showSaleModal = false; app.selectedProduct = null; app.render()" class="flex-1 bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+renderBulkUploadModal() {
+    return `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4 sm:mb-6">
+                    <h3 class="text-xl sm:text-2xl font-bold text-gray-800">Bulk Upload Products</h3>
+                    <button onclick="app.showBulkUpload = false; app.render()" class="text-gray-500 hover:text-gray-700 flex-shrink-0 ml-2">
+                        ${icons.x}
+                    </button>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                        <h4 class="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                            <span>ℹ️</span> How to Use Bulk Upload
+                        </h4>
+                        <ol class="text-sm text-blue-800 space-y-2 ml-4 list-decimal">
+                            <li>Download the Excel template by clicking the button below</li>
+                            <li>Fill in your product details in the template</li>
+                            <li>Save your Excel file</li>
+                            <li>Upload it using the upload button</li>
+                        </ol>
+                    </div>
+
+                    <div class="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+                        <h4 class="font-bold text-yellow-900 mb-2 flex items-center gap-2">
+                            <span>⚠️</span> Required Columns
+                        </h4>
+                        <ul class="text-sm text-yellow-800 space-y-1 ml-4 list-disc">
+                            <li><strong>Product Name</strong> - Name of the product (required)</li>
+                            <li><strong>Distributor Price</strong> - Cost price as a number (required)</li>
+                            <li><strong>Retail Price</strong> - Selling price as a number (required)</li>
+                            <li><strong>Quantity</strong> - Stock quantity as a number (required)</li>
+                            <li><strong>Description</strong> - Product description (optional)</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <button 
+                            onclick="app.downloadBulkUploadTemplate()" 
+                            class="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition shadow-md font-semibold"
+                        >
+                            ${icons.download}
+                            Download Excel Template
+                        </button>
+
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-500 transition">
+                            <label class="cursor-pointer">
+                                <div class="flex flex-col items-center gap-3">
+                                    <div class="text-indigo-600">
+                                        ${icons.upload}
+                                    </div>
+                                    <div>
+                                        <p class="text-lg font-semibold text-gray-700">Upload Excel File</p>
+                                        <p class="text-sm text-gray-500 mt-1">Click to browse or drag and drop</p>
+                                        <p class="text-xs text-gray-400 mt-1">Supported: .xlsx, .xls</p>
+                                    </div>
+                                </div>
+                                <input 
+                                    type="file" 
+                                    accept=".xlsx,.xls" 
+                                    onchange="app.handleBulkUpload(event)" 
+                                    class="hidden"
+                                >
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button 
+                            onclick="app.showBulkUpload = false; app.render()" 
+                            class="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+            renderOldSaleModal() {
+                const totalAmount = (parseFloat(this.oldSaleData.quantity || 0) * parseFloat(this.oldSaleData.salePrice || 0)).toFixed(2);
+                const amountPaid = parseFloat(this.oldSaleData.amountPaid || totalAmount);
+                const balance = (parseFloat(totalAmount) - amountPaid).toFixed(2);
+                
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4 sm:mb-6">
+                                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">Record Old Sale</h3>
+                                <button onclick="app.showOldSaleModal = false; app.render()" class="text-gray-500 hover:text-gray-700 flex-shrink-0 ml-2">
+                                    ${icons.x}
+                                </button>
+                            </div>
+                            
+                            <div class="bg-purple-50 p-3 sm:p-4 rounded-lg mb-4 border-2 border-purple-200">
+                                <p class="text-xs sm:text-sm text-purple-800 font-medium">Use this form to record sales that happened in the past</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                                    <input type="text" value="${this.oldSaleData.productName}"
+                                        onchange="app.oldSaleData.productName = this.value"
+                                        placeholder="Enter product name"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Sale Date *</label>
+                                        <input type="date" value="${this.oldSaleData.saleDate}"
+                                            onchange="app.oldSaleData.saleDate = this.value; app.render()"
+                                            class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-xs sm:text-sm">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+                                        <input type="time" value="${this.oldSaleData.saleTime}"
+                                            onchange="app.oldSaleData.saleTime = this.value"
+                                            class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-xs sm:text-sm">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                                    <input type="number" min="1" value="${this.oldSaleData.quantity}"
+                                        onchange="app.oldSaleData.quantity = this.value; app.render()"
+                                        placeholder="Quantity sold"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Sale Price (per unit) *</label>
+                                    <input type="number" step="0.01" value="${this.oldSaleData.salePrice}"
+                                        onchange="app.oldSaleData.salePrice = this.value; app.render()"
+                                        placeholder="Price per unit"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base">
+                                </div>
+
+                                ${totalAmount > 0 ? `
+                                    <div class="bg-blue-50 p-3 sm:p-4 rounded-lg border-2 border-blue-200">
+                                        <p class="text-base sm:text-lg font-bold text-gray-800">Total Amount: GH₵${totalAmount}</p>
+                                    </div>
+                                ` : ''}
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount Paid (Leave empty if fully paid)</label>
+                                    <input type="number" step="0.01" value="${this.oldSaleData.amountPaid}"
+                                        onchange="app.oldSaleData.amountPaid = this.value; app.render()"
+                                        placeholder="Enter amount paid"
+                                        class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base">
+                                </div>
+
+                                ${balance > 0 ? `
+                                    <div class="bg-yellow-50 p-3 sm:p-4 rounded-lg border-2 border-yellow-400">
+                                        <p class="text-base sm:text-lg font-bold text-red-600">Balance Due: GH₵${balance}</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Customer Name (Required for partial payment) *</label>
+                                        <input type="text" value="${this.oldSaleData.customerName}"
+                                            onchange="app.oldSaleData.customerName = this.value"
+                                            placeholder="Enter customer name"
+                                            class="w-full p-2 sm:p-3 border-2 border-yellow-400 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm sm:text-base">
+                                    </div>
+                                ` : `
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Customer Name (Optional)</label>
+                                        <input type="text" value="${this.oldSaleData.customerName}"
+                                            onchange="app.oldSaleData.customerName = this.value"
+                                            placeholder="Enter customer name"
+                                            class="w-full p-2 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base">
+                                    </div>
+                                `}
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
+                                <button onclick="app.addOldSale()" class="flex-1 bg-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-purple-700 transition shadow-md text-sm sm:text-base">
+                                    Record Old Sale
+                                </button>
+                                <button onclick="app.showOldSaleModal = false; app.render()" class="flex-1 bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderUnpaidSales() {
+                const unpaidSales = this.getUnpaidSales();
+                
+                if (unpaidSales.length === 0) return '';
+
+                return `
+                    <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 border-2 border-yellow-300">
+                        <h2 class="text-xl sm:text-2xl font-bold mb-4 text-gray-800">⚠️ Unpaid Sales (${unpaidSales.length})</h2>
+                        <div class="table-container">
+                            <table class="w-full min-w-[600px]">
+                                <thead class="bg-yellow-100">
+                                    <tr>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Product</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Customer</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Total</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Paid</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Balance</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Date</th>
+                                        <th class="p-2 sm:p-3 text-left font-semibold text-sm sm:text-base">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white">
+                                    ${unpaidSales.map(sale => `
+                                        <tr class="border-t hover:bg-yellow-50">
+                                            <td class="p-2 sm:p-3 text-sm sm:text-base break-words">${sale.productName}</td>
+                                            <td class="p-2 sm:p-3 font-semibold text-indigo-600 text-sm sm:text-base break-words">${sale.customerName}</td>
+                                            <td class="p-2 sm:p-3 text-sm sm:text-base">GH₵${sale.totalAmount.toFixed(2)}</td>
+                                            <td class="p-2 sm:p-3 text-green-600 text-sm sm:text-base">GH₵${sale.amountPaid.toFixed(2)}</td>
+                                            <td class="p-2 sm:p-3 font-bold text-red-600 text-sm sm:text-base">GH₵${sale.balance.toFixed(2)}</td>
+                                            <td class="p-2 sm:p-3 text-xs sm:text-sm">${new Date(sale.date).toLocaleDateString()}</td>
+                                            <td class="p-2 sm:p-3">
+                                                <button onclick='app.openPaymentModal(${JSON.stringify(sale).replace(/'/g, "&apos;")})' 
+                                                    class="bg-green-600 text-white px-2 sm:px-4 py-1 sm:py-2 rounded hover:bg-green-700 transition text-xs sm:text-sm whitespace-nowrap">
+                                                    Record Payment
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderPaymentModal() {
+                if (!this.selectedSaleForPayment) return '';
+
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 max-w-md w-full shadow-2xl">
+                            <div class="flex justify-between items-center mb-4 sm:mb-6">
+                                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">Record Payment</h3>
+                                <button onclick="app.showPaymentModal = false; app.selectedSaleForPayment = null; app.render()" class="text-gray-500 hover:text-gray-700 flex-shrink-0 ml-2">
+                                    ${icons.x}
+                                </button>
+                            </div>
+                            
+                            <div class="bg-yellow-50 p-3 sm:p-4 rounded-lg mb-4 border-2 border-yellow-300">
+                                <p class="font-bold text-gray-800 mb-2 text-sm sm:text-base break-words">${this.selectedSaleForPayment.productName}</p>
+                                <p class="text-xs sm:text-sm text-gray-600">Customer: ${this.selectedSaleForPayment.customerName}</p>
+                                <p class="text-xs sm:text-sm text-gray-600">Total: GH₵${this.selectedSaleForPayment.totalAmount.toFixed(2)}</p>
+                                <p class="text-xs sm:text-sm text-green-600">Paid: GH₵${this.selectedSaleForPayment.amountPaid.toFixed(2)}</p>
+                                <p class="text-sm sm:text-base text-red-600 font-bold">Balance Due: GH₵${this.selectedSaleForPayment.balance.toFixed(2)}</p>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Payment Amount *</label>
+                                <input type="number" step="0.01" max="${this.selectedSaleForPayment.balance}" value="${this.paymentData.amount}"
+                                    onchange="app.paymentData.amount = this.value"
+                                    class="w-full p-2 sm:p-3 border-2 border-green-400 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm sm:text-base"
+                                    placeholder="Enter payment amount">
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                                <button onclick="app.recordPayment()" class="flex-1 bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-green-700 transition shadow-md text-sm sm:text-base">
+                                    Record Payment
+                                </button>
+                                <button onclick="app.showPaymentModal = false; app.selectedSaleForPayment = null; app.render()" class="flex-1 bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderSalesTable() {
+                const salesByDay = this.groupSalesByDay();
+const sortedDates = Object.keys(salesByDay).sort((a, b) => 
+    new Date(a) - new Date(b)  // Oldest first (ascending)
+);
+                
+                if (sortedDates.length === 0) {
+                    return `
+                        <div class="text-center py-12 bg-gray-50 rounded-xl">
+                            <p class="text-gray-500 text-lg">No sales yet. Make your first sale!</p>
+                        </div>
+                    `;
+                }
+                
+                return `
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-bold mb-4 text-gray-800">Sales Records</h2>
+                        <div class="space-y-6">
+                            ${sortedDates.map(date => {
+                                const daySales = salesByDay[date];
+                                const summary = this.calculateDaySummary(daySales);
+                                
+                                return `
+                                    <div class="border-4 border-red-400 rounded-lg overflow-hidden shadow-lg">
+                                        <div class="bg-gradient-to-r from-red-500 to-pink-500 text-white p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+    <h3 class="text-lg sm:text-xl font-bold">${date}</h3>
+    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        ${this.currentUser.role === 'admin' ? `
+            <button onclick="app.showDeleteButtons = !app.showDeleteButtons; app.render()" 
+                class="flex items-center justify-center gap-2 ${this.showDeleteButtons ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 hover:bg-gray-700'} text-white px-3 sm:px-4 py-2 rounded-lg transition shadow-md text-xs sm:text-sm font-semibold">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                ${this.showDeleteButtons ? '🔓 Hide Delete' : '🔒 Show Delete'}
+            </button>
+        ` : ''}
+        <button onclick='app.exportDailyToExcel("${date}", ${JSON.stringify(daySales).replace(/'/g, "&apos;")})'
+                                                    class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg transition shadow-md text-xs sm:text-sm font-semibold">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                    </svg>
+                                                    Excel
+                                                </button>
+                                                <button onclick='app.exportDailyToWord("${date}", ${JSON.stringify(daySales).replace(/'/g, "&apos;")})' 
+                                                    class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg transition shadow-md text-xs sm:text-sm font-semibold">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                                    </svg>
+                                                    Word
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white p-3 sm:p-4 md:p-6">
+                                            <div class="table-container mb-4">
+                                                <table class="w-full min-w-[600px]">
+                                                    <thead class="bg-gray-100">
+    <tr>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Product</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Customer</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Qty</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Price</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Total</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Paid</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Balance</th>
+        <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm">Time</th>
+       ${this.currentUser.role === 'admin' && this.showDeleteButtons ? `
+    <th class="p-2 sm:p-3 text-left font-semibold text-xs sm:text-sm bg-red-100">Action</th>
+` : ''}
+    </tr>
+</thead>
+                                                    <tbody>
+                                                        ${daySales.map(sale => `
+                                                            <tr class="border-t hover:bg-gray-50 ${sale.balance > 0 ? 'bg-yellow-50' : ''} ${sale.isPaymentRecord ? 'bg-green-50' : ''}">
+    <td class="p-2 sm:p-3 text-xs sm:text-sm break-words">
+        ${sale.productName}
+        ${sale.isPaymentRecord ? `
+            <div class="text-xs text-green-700 font-semibold mt-1">
+                💰 ${sale.paymentNote}
+            </div>
+        ` : ''}
+    </td>
+    <td class="p-2 sm:p-3 ${sale.customerName ? 'font-semibold text-indigo-600' : 'text-gray-400'} text-xs sm:text-sm break-words">${sale.customerName || '-'}</td>
+    <td class="p-2 sm:p-3 text-xs sm:text-sm">${sale.quantity || '-'}</td>
+    <td class="p-2 sm:p-3 text-xs sm:text-sm">${sale.salePrice > 0 ? 'GH₵' + sale.salePrice.toFixed(2) : '-'}</td>
+    <td class="p-2 sm:p-3 font-semibold text-xs sm:text-sm">${sale.isPaymentRecord ? '-' : 'GH₵' + sale.totalAmount.toFixed(2)}</td>
+    <td class="p-2 sm:p-3 text-green-600 font-semibold text-xs sm:text-sm">GH₵${sale.amountPaid.toFixed(2)}</td>
+    <td class="p-2 sm:p-3 ${sale.balance > 0 ? 'font-bold text-red-600' : 'text-gray-400'} text-xs sm:text-sm">
+        ${sale.balance > 0 ? 'GH₵' + sale.balance.toFixed(2) : '-'}
+    </td>
+    <td class="p-2 sm:p-3 text-xs sm:text-sm whitespace-nowrap">${new Date(sale.date).toLocaleTimeString()}</td>
+${this.currentUser.role === 'admin' && this.showDeleteButtons ? `
+    <td class="p-2 sm:p-3">
+        <button onclick='app.deleteSale(${JSON.stringify(sale).replace(/'/g, "&apos;")})' 
+            class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition text-xs flex items-center gap-1"
+            title="Delete Sale (Admin Only)">
+            ${icons.trash}
+            Delete
+        </button>
+    </td>
+` : ''}
+</tr>
+            `).join('')}
+        </tbody>
+     </table>
+     </div>
+                                            
+                                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 sm:p-6 border-2 border-indigo-200">
+                                                <h4 class="text-base sm:text-lg font-bold text-gray-800 mb-4">Daily Summary</h4>
+                                                
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                                                    <div>
+                                                        <h5 class="font-semibold text-gray-700 mb-3 text-sm sm:text-base">Items Sold:</h5>
+                                                        <div class="space-y-2">
+                                                            ${Object.entries(summary.itemsSold).map(([product, data]) => `
+                                                                <div class="flex justify-between items-center bg-white p-2 sm:p-3 rounded-lg shadow-sm">
+                                                                    <span class="font-medium text-gray-700 text-xs sm:text-sm break-words">${product}</span>
+                                                                    <div class="text-right ml-2 flex-shrink-0">
+                                                                        <div class="font-bold text-indigo-600 text-xs sm:text-sm">${data.quantity} units</div>
+                                                                        <div class="text-xs text-gray-600">GH₵${data.amount.toFixed(2)}</div>
+                                                                    </div>
+                                                                </div>
+                                                            `).join('')}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="flex flex-col justify-center">
+                                                        <div class="bg-white rounded-lg p-4 sm:p-6 shadow-md border-2 border-green-200 mb-4">
+                                                            <div class="text-center">
+                                                                <p class="text-gray-600 font-medium mb-2 text-xs sm:text-sm">Total Items Sold</p>
+                                                                <p class="text-2xl sm:text-3xl font-bold text-indigo-600 mb-3 sm:mb-4">${summary.totalQuantity}</p>
+                                                                
+                                                                <div class="h-1 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full mb-2 sm:mb-3"></div>
+                                                                
+                                                                <p class="text-gray-600 font-medium mb-2 text-xs sm:text-sm">Total Sales Amount</p>
+                                                                <p class="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-600 mb-2 sm:mb-3">GH₵${summary.totalAmount.toFixed(2)}</p>
+                                                                
+                                                                ${summary.paymentsReceived > 0 ? `
+                                                                    <div class="h-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full mb-2 sm:mb-3"></div>
+                                                                    
+                                                                    <p class="text-gray-600 font-medium mb-2 text-xs sm:text-sm">Debt Payments Received</p>
+                                                                    <p class="text-xl sm:text-2xl font-bold text-orange-600 mb-2 sm:mb-3">GH₵${summary.paymentsReceived.toFixed(2)}</p>
+                                                                ` : ''}
+                                                                
+                                                                <div class="h-1 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full mb-2 sm:mb-3"></div>
+                                                                
+                                                                <p class="text-gray-600 font-medium mb-2 text-xs sm:text-sm">Total Cash Received</p>
+                                                                <p class="text-2xl sm:text-3xl font-bold text-green-600">GH₵${summary.amountReceived.toFixed(2)}</p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        ${summary.totalBalance > 0 ? `
+                                                            <div class="bg-gradient-to-r from-red-100 to-orange-100 rounded-lg p-4 sm:p-6 shadow-md border-2 border-red-300">
+                                                                <div class="text-center">
+                                                                    <p class="text-red-800 font-bold mb-2 text-xs sm:text-sm">Outstanding Balance</p>
+                                                                    <p class="text-2xl sm:text-3xl md:text-4xl font-bold text-red-600">GH₵${summary.totalBalance.toFixed(2)}</p>
+                                                                </div>
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        const app = new InventoryApp();
+    </script>
+</body>
+</html>
